@@ -27,33 +27,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        // waiting for view to draw to better represent a captured error with a screenshot
-//        findViewById<android.view.View>(android.R.id.content).viewTreeObserver.addOnGlobalLayoutListener {
-//          try {
-//            throw Exception("This app uses Sentry! :)")
-//          } catch (e: Exception) {
-//            Sentry.captureException(e)
-//          }
-//        }
-//
-//        enableEdgeToEdge()
-//        setContent {
-//            SentryTestAppTheme {
-//                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-//                    Greeting(
-//                        name = "Android",
-//                        modifier = Modifier.padding(innerPadding)
-//                    )
-//                }
-//            }
-//        }
-
-
 
         val crashBtn = findViewById<Button>(R.id.btnCrash)
         val errorBtn = findViewById<Button>(R.id.btnHandledError)
         val slowBtn = findViewById<Button>(R.id.btnSlowFunction)
         val profilingBtn = findViewById<Button>(R.id.btnTransaction)
+        val suspectCommitBtn = findViewById<Button>(R.id.btnSuspectCommit)
 
         // Crash Button
         crashBtn.setOnClickListener {
@@ -107,6 +86,11 @@ class MainActivity : ComponentActivity() {
 //                transaction.finish(Sentry.PerformanceLevel.ERROR)
 //                throw e
 //            }
+        }
+
+
+        suspectCommitBtn.setOnClickListener {
+            throw IllegalArgumentException("I am a suspect commit")
         }
 
         // Set user info
