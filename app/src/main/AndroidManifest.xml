@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".SentryTestApplication"
         android:allowBackup="true"
@@ -25,52 +27,43 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    
-    <!-- Required: set your sentry.io project identifier (DSN) -->
-    <meta-data android:name="io.sentry.dsn" android:value="https://846a1f0b551bcc7341dc0f777214a5a6@o4509374427889664.ingest.us.sentry.io/4509429485928448" />
-    <!-- Add data like request headers, user ip address and device name, see https://docs.sentry.io/platforms/android/data-management/data-collected/ for more info -->
-    <meta-data android:name="io.sentry.send-default-pii" android:value="true" />
+        <activity android:name=".WeatherActivity" />
 
-    <!-- enable automatic breadcrumbs for user interactions (clicks, swipes, scrolls) -->
-    <meta-data android:name="io.sentry.traces.user-interaction.enable" android:value="true" />
-    <!-- enable screenshot for crashes (could contain sensitive/PII data) -->
-    <meta-data android:name="io.sentry.attach-screenshot" android:value="true" />
-    <!-- enable view hierarchy for crashes -->
-    <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />
-
-    <!-- enable the performance API by setting a sample-rate, adjust in production env -->
-    <meta-data
-        android:name="io.sentry.traces.profiling.session-sample-rate"
-        android:value="1.0"
-        />
-
-    <!-- Enable ANR detection -->
-    <meta-data
-        android:name="io.sentry.anr.enable"
-        android:value="true" />
-
-    <!-- Set ANR timeout interval -->
-    <meta-data
-        android:name="io.sentry.anr.timeout-interval-millis"
-        android:value="2000" />
-
-    <!-- Set sampling rate for profiling, adjust in production env - this is evaluated only once per session -->
-    <!-- note: there is a known issue in the Android Runtime that can be triggered by Profiling in certain circumstances -->
-    <!-- see https://docs.sentry.io/platforms/android/profiling/troubleshooting/ -->
-    <meta-data
-        android:name="io.sentry.traces.profiling.session-sample-rate"
-        android:value="1.0"
-        />
-    <!-- Set profiling lifecycle, can be `manual` (controlled through `Sentry.startProfiler()` and `Sentry.stopProfiler()`) or `trace` (automatically starts and stop a profile whenever a sampled trace starts and finishes) -->
-    <meta-data
-        android:name="io.sentry.traces.profiling.lifecycle"
-        android:value="trace"
-        />
-    <!-- Enable profiling on app start -->
-    <meta-data
-        android:name="io.sentry.traces.profiling.start-on-app-start"
-        android:value="true"
-        />
-</application>
+        <meta-data
+            android:name="io.sentry.dsn"
+            android:value="https://846a1f0b551bcc7341dc0f777214a5a6@o4509374427889664.ingest.us.sentry.io/4509429485928448" /> <!-- Add data like request headers, user ip address and device name, see https://docs.sentry.io/platforms/android/data-management/data-collected/ for more info -->
+        <meta-data
+            android:name="io.sentry.send-default-pii"
+            android:value="true" /> <!-- enable automatic breadcrumbs for user interactions (clicks, swipes, scrolls) -->
+        <meta-data
+            android:name="io.sentry.traces.user-interaction.enable"
+            android:value="true" /> <!-- enable screenshot for crashes (could contain sensitive/PII data) -->
+        <meta-data
+            android:name="io.sentry.attach-screenshot"
+            android:value="true" /> <!-- enable view hierarchy for crashes -->
+        <meta-data
+            android:name="io.sentry.attach-view-hierarchy"
+            android:value="true" /> <!-- enable the performance API by setting a sample-rate, adjust in production env -->
+        <meta-data
+            android:name="io.sentry.traces.profiling.session-sample-rate"
+            android:value="1.0" /> <!-- Set sampling rate for profiling, adjust in production env - this is evaluated only once per session -->
+        <!-- note: there is a known issue in the Android Runtime that can be triggered by Profiling in certain circumstances -->
+        <!-- see https://docs.sentry.io/platforms/android/profiling/troubleshooting/ -->
+        <meta-data
+            android:name="io.sentry.traces.profiling.session-sample-rate"
+            android:value="1.0" /> <!-- Enable ANR detection -->
+        <meta-data
+            android:name="io.sentry.anr.enable"
+            android:value="true" /> <!-- Set ANR timeout interval -->
+        <meta-data
+            android:name="io.sentry.anr.timeout-interval-millis"
+            android:value="2000" /> <!-- Set profiling lifecycle, can be `manual` (controlled through `Sentry.startProfiler()` and `Sentry.stopProfiler()`) or `trace` (automatically starts and stop a profile whenever a sampled trace starts and finishes) -->
+        <meta-data
+            android:name="io.sentry.traces.profiling.lifecycle"
+            android:value="trace" /> <!-- Enable profiling on app start -->
+        <meta-data
+            android:name="io.sentry.traces.profiling.start-on-app-start"
+            android:value="true" />
+    </application>
 
 </manifest>

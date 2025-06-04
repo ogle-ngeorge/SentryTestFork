@@ -1,5 +1,6 @@
 package com.example.sentrytestapp
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
         val slowBtn = findViewById<Button>(R.id.btnSlowFunction)
         val profilingBtn = findViewById<Button>(R.id.btnTransaction)
         val suspectCommitBtn = findViewById<Button>(R.id.btnSuspect)
+        val weatherBtn = findViewById<Button>(R.id.btnOpenWeather)
 
         // Crash Button
         crashBtn.setOnClickListener {
@@ -91,6 +93,11 @@ class MainActivity : ComponentActivity() {
 
         suspectCommitBtn.setOnClickListener {
             throw IllegalArgumentException("I am a suspect commit")
+        }
+
+        weatherBtn.setOnClickListener {
+            val weatherActivity = Intent(this, WeatherActivity::class.java)
+            startActivity(weatherActivity)
         }
 
         // Set user info
