@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         val errorBtn = findViewById<Button>(R.id.btnHandledError)
         val slowBtn = findViewById<Button>(R.id.btnSlowFunction)
         val profilingBtn = findViewById<Button>(R.id.btnTransaction)
-        val suspectCommitBtn = findViewById<Button>(R.id.btnSuspectCommit)
+        val suspectCommitBtn = findViewById<Button>(R.id.btnSuspect)
 
         // Crash Button
         crashBtn.setOnClickListener {

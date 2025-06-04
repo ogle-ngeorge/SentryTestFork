@@ -32,7 +32,7 @@
         android:layout_marginTop="16dp" />
 
     <Button
-        android:id="@+id/btnSuspectCommit"
+        android:id="@+id/btnSuspect"
         android:text="Suspect Commit"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
