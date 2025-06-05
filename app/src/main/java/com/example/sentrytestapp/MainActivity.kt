@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
         val profilingBtn = findViewById<Button>(R.id.btnTransaction)
         val suspectCommitBtn = findViewById<Button>(R.id.btnSuspect)
         val weatherBtn = findViewById<Button>(R.id.btnOpenWeather)
+        val dbBtn = findViewById<Button>(R.id.btnOpenDb)
 
         // Crash Button
         crashBtn.setOnClickListener {
@@ -98,6 +99,11 @@ class MainActivity : ComponentActivity() {
         weatherBtn.setOnClickListener {
             val weatherActivity = Intent(this, WeatherActivity::class.java)
             startActivity(weatherActivity)
+        }
+
+        dbBtn.setOnClickListener {
+            val intent = Intent(this, DbActivity::class.java)
+            startActivity(intent)
         }
 
         // Set user info
