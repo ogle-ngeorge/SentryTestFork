@@ -28,7 +28,6 @@
             </intent-filter>
         </activity>
         <activity android:name=".WeatherActivity" />
-        <activity android:name=".DbActivity" />
 
         <meta-data
             android:name="io.sentry.dsn"
