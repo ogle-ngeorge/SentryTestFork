@@ -1,0 +1,44 @@
+plugins {
+    id 'org.springframework.boot' version '3.2.0'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'java'
+    id 'io.sentry.jvm.gradle' version '4.0.0'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = '17'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.sentry:sentry-spring-boot-starter-jakarta:7.0.0'
+    
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Sentry configuration - disabled since plugin is disabled
+
+// sentry {
+    // Generates a JVM (Java, Kotlin, etc.) Bundle ID and uploads your source code to Sentry.
+    // This enables source context, allows you to see your source
+    // code as part of your stack traces in Sentry.
+    
+    // Disable source context upload for local development
+    // includeSourceContext = false
+    
+    // org = "sentry"
+    // projectName = "java-spring-boot"
+    // authToken = System.getenv("291373ec577e11f09d0cc6854f1d7ba9")
+// }
