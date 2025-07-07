@@ -8,7 +8,7 @@ class SentryTestApplication : Application() {
         super.onCreate()
         
         SentryAndroid.init(this) { options ->
-            options.dsn = "https://846a1f0b551bcc7341dc0f777214a5a6@o4509374427889664.ingest.us.sentry.io/4509429485928448"
+            options.dsn = "http://add45c761cf0fe12864419efb306b9cd@localhost:9000/2"
             options.isDebug = true
 
             // ANR timeout interval
