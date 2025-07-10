@@ -19,8 +19,10 @@ repositories {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'io.sentry:sentry-spring-boot-starter-jakarta:7.0.0'
-    
+    implementation 'io.sentry:sentry-spring-boot-starter-jakarta:7.4.0'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
@@ -30,15 +32,15 @@ tasks.named('test') {
 
 // Sentry configuration - disabled since plugin is disabled
 
-// sentry {
+sentry {
     // Generates a JVM (Java, Kotlin, etc.) Bundle ID and uploads your source code to Sentry.
     // This enables source context, allows you to see your source
     // code as part of your stack traces in Sentry.
     
     // Disable source context upload for local development
-    // includeSourceContext = false
+    includeSourceContext = false
     
-    // org = "sentry"
-    // projectName = "java-spring-boot"
-    // authToken = System.getenv("291373ec577e11f09d0cc6854f1d7ba9")
-// }
+    org = "sentry"
+    projectName = "java-spring-boot"
+    authToken = System.getenv("291373ec577e11f09d0cc6854f1d7ba9")
+}

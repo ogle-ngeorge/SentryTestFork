@@ -63,12 +63,6 @@ Content-Type: application/json
 ```
 Accepts POST data. Set `trigger_error: true` to test error handling.
 
-### Random Data
-```
-GET http://localhost:8081/api/random-data
-```
-Randomly succeeds or fails (50/50 chance) for testing purposes.
-
 ## Testing with your Android App
 
 You can call these endpoints from your Android app to:
