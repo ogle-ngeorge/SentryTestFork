@@ -54,7 +54,16 @@ public class AIAnalysisService {
         }
     }
 
-
+    //Interpretation of Stacktrace
+    public List<String> generateTraceInterpretation(StackTraceGenerator stackTraceGenerator){
+        try{
+            String stackTrace = stackTraceGenerator.getMostRecentStackTraceWithGithubLinks();
+            return callGeminiforStackTraceAnalysis(stackTrace);
+        } catch (Exception e){
+            Sentry.captureException(e);
+            return Arrays.asList("Gemini AI Stack Trace Analysis Fail");
+        }
+    }
     // Suggestions on how to fix error
     public List<String> generateSuggestion(){
         try{
@@ -81,6 +90,18 @@ public class AIAnalysisService {
         }
     }
 
+    // Call Gemini API for stack trace analysis
+    private List<String> callGeminiforStackTraceAnalysis(String stackTraceWithGithubLinks){
+        try{
+            String prompt = createStackAnalysisPrompt(stackTraceWithGithubLinks);
+            String geminiResponse = callGeminiAPI(prompt);
+            return parseGeminiInterpretation(geminiResponse);
+        } catch (Exception e) {
+            Sentry.captureException(e);
+            return Arrays.asList("Gemini AI Stack Trace Analysis Fail");
+        }
+    }
+
     // Call Gemini API for error analysis
     private String callGeminiForAnalysis(String errorData) {
         try {
@@ -99,7 +120,9 @@ public class AIAnalysisService {
     // Create analysis prompt to interpret stack trace data for Gemini
     private String createStackAnalysisPrompt(String stackTraceData) {
         return "You are an expert softare engineer analyzing stack trace data from sentry. Please analyze the following lines " +
-        " and try to figure out where the error is coming from and what line. Be sepcific and actionable in your analysis.";
+        " and try to figure out where the error is coming from and what line. Be sepcific and actionable in your analysis." +
+        " Refer to the GitHub links in the stack trace for the exact code location. \n\n" +
+        " Stack Trace:\n" + stackTraceData + "\n\n";
     }
 
     // Create analysis prompt for Gemini
@@ -158,32 +181,44 @@ public class AIAnalysisService {
 
     // PARSING GEMINI RESPONSE METHODS //
 
-    // Parse Gemini response for analysis
-    private String parseGeminiResponse(String geminiResponse) {
+    // Parse Gemini Interpretations to make it readable
+    private List<String> parseGeminiInterpretation(String geminiResponse) {
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(geminiResponse);
-            
             JsonNode candidatesNode = rootNode.path("candidates");
             if (candidatesNode.isArray() && candidatesNode.size() > 0) {
                 JsonNode contentNode = candidatesNode.get(0).path("content");
                 JsonNode partsNode = contentNode.path("parts");
                 if (partsNode.isArray() && partsNode.size() > 0) {
-                    String analysisText = partsNode.get(0).path("text").asText();
-                    return "🤖 GEMINI AI ANALYSIS:\n\n" + analysisText;
+                    String interpretationText = partsNode.get(0).path("text").asText();
+                    String[] lines = interpretationText.split("\n");
+                    List<String> result = new ArrayList<>();
+                    result.add("🤖 GEMINI AI INTERPRETATION:");
+                    // Add the first non-empty line as the summary
+                    for (String line : lines) {
+                        if (!line.trim().isEmpty()) {
+                            result.add(line.trim());
+                            break;
+                        }
+                    }
+                    // Try to find a GitHub link in the response and add it
+                    for (String line : lines) {
+                        if (line.contains("github.com")) {
+                            result.add("GitHub Link: " + line.trim());
+                            break;
+                        }
+                    }
+                    return result;
                 }
             }
-            
-            return "🤖 GEMINI AI ANALYSIS:\n\nUnable to parse Gemini response";
-            
+            return Arrays.asList("🤖 GEMINI AI INTERPRETATION:", "Unable to parse Gemini response");
         } catch (Exception e) {
-            return "🤖 GEMINI AI ANALYSIS:\n\nError parsing response: " + e.getMessage();
+            return Arrays.asList("🤖 GEMINI AI INTERPRETATION:", "Error parsing response: " + e.getMessage());
         }
     }
 
-    // DATA RETRIEVE AND PARSING METHODS //
-
-    // Parse Gemini response for suggestions
+    // Parse Gemini Suggestions to make it readable
     private List<String> parseSuggestionsResponse(String geminiResponse) {
         try {
             ObjectMapper mapper = new ObjectMapper();
@@ -218,6 +253,31 @@ public class AIAnalysisService {
             return Arrays.asList("🤖 GEMINI AI SUGGESTIONS:", "Error parsing response: " + e.getMessage());
         }
     }
+
+    // Parse Gemini response for analysis
+    private String parseGeminiResponse(String geminiResponse) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(geminiResponse);
+            
+            JsonNode candidatesNode = rootNode.path("candidates");
+            if (candidatesNode.isArray() && candidatesNode.size() > 0) {
+                JsonNode contentNode = candidatesNode.get(0).path("content");
+                JsonNode partsNode = contentNode.path("parts");
+                if (partsNode.isArray() && partsNode.size() > 0) {
+                    String analysisText = partsNode.get(0).path("text").asText();
+                    return "🤖 GEMINI AI ANALYSIS:\n\n" + analysisText;
+                }
+            }
+            
+            return "🤖 GEMINI AI ANALYSIS:\n\nUnable to parse Gemini response";
+            
+        } catch (Exception e) {
+            return "🤖 GEMINI AI ANALYSIS:\n\nError parsing response: " + e.getMessage();
+        }
+    }
+
+    // DATA RETRIEVE METHODS //    
 
     // Fetches raw JSON data from Sentry's API
     // Returns it as a readable summary of data

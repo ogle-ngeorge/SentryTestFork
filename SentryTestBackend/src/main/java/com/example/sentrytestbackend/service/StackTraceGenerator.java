@@ -22,6 +22,7 @@ public class StackTraceGenerator {
     // Must trigger an error before using
     public String getMostRecentStackTrace() {
     try {
+        waitThirtySeconds();
         String jsonResponse = aiAnalysisService.getRawSentryErrorData();
         ObjectMapper mapper = new ObjectMapper();
         JsonNode rootNode = mapper.readTree(jsonResponse);
@@ -84,6 +85,7 @@ public class StackTraceGenerator {
 // This Method maps the code to our Github Repo, for accurate lines
 public String getMostRecentStackTraceWithGithubLinks() {
     try {
+        waitThirtySeconds();
         String jsonResponse = aiAnalysisService.getRawSentryErrorData();
         ObjectMapper mapper = new ObjectMapper();
         JsonNode rootNode = mapper.readTree(jsonResponse);
@@ -145,6 +147,15 @@ public String getMostRecentStackTraceWithGithubLinks() {
         return "No stack trace found in the most recent Sentry event.";
     } catch (Exception e) {
         return "Error fetching or parsing Sentry data: " + e.getMessage();
+    }
+}
+
+// Helper method to make it wait 30 seconds before recieving the error.
+private void waitThirtySeconds(){
+    try{
+        Thread.sleep(30000); // 30 seconds
+    } catch (InterruptedException ie){
+        Thread.currentThread().interrupt();
     }
 }
 }

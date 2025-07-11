@@ -27,15 +27,15 @@ import io.sentry.Sentry;
 public class TestController {
 
     private final Random random = new Random();
-    
-    @Autowired
-    private StackTraceGenerator stackTraceGenerator;
 
     @Autowired
     private AIAnalysisService aiAnalysisService;
     
     @Autowired
     private SentrySpotlightConfig sentrySpotlightConfig;
+
+    @Autowired
+    private StackTraceGenerator stackTraceGenerator;
 
     // GET REQUEST TO CHECK IF BACKEND RUNNING ~ Returns UP with Timestamp.
     // Makes sure Server works before running other tests
@@ -128,6 +128,14 @@ public class TestController {
         return ResponseEntity.ok(analysis);
     }
 
+    // GET REQUEST TO GET GEMINI RESPONSE ON STACKTRACE ERRORS
+    // http://localhost:8081/api/gemini-stacktrace
+    @GetMapping("/gemini-stacktrace")
+    public ResponseEntity<List<String>> getGeminiStackTrace(){
+        List<String> interpretation = aiAnalysisService.generateTraceInterpretation(stackTraceGenerator);
+        return ResponseEntity.ok(interpretation);
+    }
+
     // GET REQUEST TO GET AI SUGGESTIONS
     // http://localhost:8081/api/gemini-suggestions
     @GetMapping("/gemini-suggestions")
@@ -136,46 +144,46 @@ public class TestController {
         return ResponseEntity.ok(suggestions);
     }
 
-    // GET REQUEST TO TEST SPOTLIGHT CONNECTION
-    // http://localhost:8081/api/test-spotlight
-    @GetMapping("/test-spotlight")
-    public ResponseEntity<Map<String, Object>> testSpotlight() {
-        Map<String, Object> response = new HashMap<>();
+    // // GET REQUEST TO TEST SPOTLIGHT CONNECTION
+    // // http://localhost:8081/api/test-spotlight
+    // @GetMapping("/test-spotlight")
+    // public ResponseEntity<Map<String, Object>> testSpotlight() {
+    //     Map<String, Object> response = new HashMap<>();
         
-        try {
-            // Test Spotlight connection
-            sentrySpotlightConfig.testSpotlightConnection();
+    //     try {
+    //         // Test Spotlight connection
+    //         sentrySpotlightConfig.testSpotlightConnection();
             
-            // Send various test events
-            Sentry.addBreadcrumb("🔍 Spotlight test initiated");
-            Sentry.captureMessage("Test message from /test-spotlight endpoint");
+    //         // Send various test events
+    //         Sentry.addBreadcrumb("🔍 Spotlight test initiated");
+    //         Sentry.captureMessage("Test message from /test-spotlight endpoint");
             
-            // Create a test exception
-            try {
-                throw new RuntimeException("Test exception for Spotlight integration");
-            } catch (Exception e) {
-                Sentry.captureException(e);
-            }
+    //         // Create a test exception
+    //         try {
+    //             throw new RuntimeException("Test exception for Spotlight integration");
+    //         } catch (Exception e) {
+    //             Sentry.captureException(e);
+    //         }
             
-            response.put("success", true);
-            response.put("message", "Spotlight test events sent successfully");
-            response.put("spotlight_url", "http://localhost:8969");
-            response.put("instructions", Arrays.asList(
-                "1. Make sure Spotlight is running on localhost:8969",
-                "2. Check your terminal for Spotlight connection messages",
-                "3. View events in the Spotlight interface"
-            ));
+    //         response.put("success", true);
+    //         response.put("message", "Spotlight test events sent successfully");
+    //         response.put("spotlight_url", "http://localhost:8969");
+    //         response.put("instructions", Arrays.asList(
+    //             "1. Make sure Spotlight is running on localhost:8969",
+    //             "2. Check your terminal for Spotlight connection messages",
+    //             "3. View events in the Spotlight interface"
+    //         ));
             
-            return ResponseEntity.ok(response);
+    //         return ResponseEntity.ok(response);
             
-        } catch (Exception e) {
-            Sentry.captureException(e);
-            response.put("success", false);
-            response.put("error", "Failed to test Spotlight connection");
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(500).body(response);
-        }
-    }
+    //     } catch (Exception e) {
+    //         Sentry.captureException(e);
+    //         response.put("success", false);
+    //         response.put("error", "Failed to test Spotlight connection");
+    //         response.put("message", e.getMessage());
+    //         return ResponseEntity.status(500).body(response);
+    //     }
+    // }
 
     // GET REQUEST TO SEE STACK TRACE FROM MOST RECENT ERROR
     // http://localhost:8081/api/see-stack-trace
@@ -194,4 +202,6 @@ public class TestController {
         String stackTrace = stackTraceGenerator.getMostRecentStackTraceWithGithubLinks();
         return ResponseEntity.ok(stackTrace);
     }
+
+
 }
