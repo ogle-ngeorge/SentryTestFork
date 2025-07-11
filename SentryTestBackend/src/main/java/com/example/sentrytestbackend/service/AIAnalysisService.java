@@ -309,4 +309,26 @@ public class AIAnalysisService {
         
         return "UnknownError";
     }
+
+    public String getRawSentryErrorData() {
+        try {
+            // Construct Sentry API URL for events
+            String url = String.format("%s/api/0/projects/noah-3t/android/events/?full=true", sentryBaseUrl);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + sentryApiToken);
+            headers.set("Content-Type", "application/json");
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                url, HttpMethod.GET, entity, String.class);
+
+            // Return the raw JSON string from Sentry
+            return response.getBody();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch errors from Sentry API", e);
+        }
+    }
 }

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.sentrytestbackend.service.AIAnalysisService;
+import com.example.sentrytestbackend.service.StackTraceGenerator;
 import com.example.sentrytestbackend.config.SentrySpotlightConfig;
 import io.sentry.Sentry;
 
@@ -27,6 +28,9 @@ public class TestController {
 
     private final Random random = new Random();
     
+    @Autowired
+    private StackTraceGenerator stackTraceGenerator;
+
     @Autowired
     private AIAnalysisService aiAnalysisService;
     
@@ -171,5 +175,14 @@ public class TestController {
             response.put("message", e.getMessage());
             return ResponseEntity.status(500).body(response);
         }
+    }
+
+    // GET REQUEST TO SEE STACK TRACE FROM MOST RECENT ERROR
+    // http://localhost:8081/api/see-stack-trace
+    // Currently in JSON
+    @GetMapping("/see-stack-trace")
+    public ResponseEntity<String> seeStackTrace() {
+        String stackTrace = stackTraceGenerator.getMostRecentStackTrace();
+        return ResponseEntity.ok(stackTrace);
     }
 }
