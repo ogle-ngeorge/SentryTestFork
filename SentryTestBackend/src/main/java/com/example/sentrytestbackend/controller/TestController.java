@@ -179,10 +179,19 @@ public class TestController {
 
     // GET REQUEST TO SEE STACK TRACE FROM MOST RECENT ERROR
     // http://localhost:8081/api/see-stack-trace
-    // Currently in JSON
+    // Currently in classic Java format
     @GetMapping("/see-stack-trace")
     public ResponseEntity<String> seeStackTrace() {
         String stackTrace = stackTraceGenerator.getMostRecentStackTrace();
+        return ResponseEntity.ok(stackTrace);
+    }
+
+    // GET REQUEST TO SEE STACK TRACE FROM MOST RECENt ERROR WITH GITHUB CODE CONENCTIONS
+    // http://localhost:8081/api/see-stack-trace-github
+    // Currently in classic Java format
+    @GetMapping("/see-stack-trace-github")
+    public ResponseEntity<String> seeStackTraceGithub(){
+        String stackTrace = stackTraceGenerator.getMostRecentStackTraceWithGithubLinks();
         return ResponseEntity.ok(stackTrace);
     }
 }

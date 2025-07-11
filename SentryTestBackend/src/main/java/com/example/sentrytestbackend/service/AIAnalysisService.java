@@ -54,6 +54,7 @@ public class AIAnalysisService {
         }
     }
 
+
     // Suggestions on how to fix error
     public List<String> generateSuggestion(){
         try{
@@ -66,6 +67,19 @@ public class AIAnalysisService {
     }
 
     // GEMINI METHODS BELOW //
+
+    // Call Gemini API for suggestions
+    private List<String> callGeminiForSuggestions(String errorData) {
+        try {
+            String prompt = createSuggestionsPrompt(errorData);
+            String geminiResponse = callGeminiAPI(prompt);
+            return parseSuggestionsResponse(geminiResponse);
+            
+        } catch (Exception e) {
+            Sentry.captureException(e);
+            return Arrays.asList("Gemini AI Suggestions failed: " + e.getMessage());
+        }
+    }
 
     // Call Gemini API for error analysis
     private String callGeminiForAnalysis(String errorData) {
@@ -81,6 +95,13 @@ public class AIAnalysisService {
     }
 
     // GEMINI PROMPT GENERATION METHODS //
+
+    // Create analysis prompt to interpret stack trace data for Gemini
+    private String createStackAnalysisPrompt(String stackTraceData) {
+        return "You are an expert softare engineer analyzing stack trace data from sentry. Please analyze the following lines " +
+        " and try to figure out where the error is coming from and what line. Be sepcific and actionable in your analysis.";
+    }
+
     // Create analysis prompt for Gemini
     private String createAnalysisPrompt(String errorData) {
         return "You are an expert software engineer analyzing error data from a production system. " +
@@ -135,6 +156,8 @@ public class AIAnalysisService {
         }
     }
 
+    // PARSING GEMINI RESPONSE METHODS //
+
     // Parse Gemini response for analysis
     private String parseGeminiResponse(String geminiResponse) {
         try {
@@ -157,6 +180,8 @@ public class AIAnalysisService {
             return "🤖 GEMINI AI ANALYSIS:\n\nError parsing response: " + e.getMessage();
         }
     }
+
+    // DATA RETRIEVE AND PARSING METHODS //
 
     // Parse Gemini response for suggestions
     private List<String> parseSuggestionsResponse(String geminiResponse) {
@@ -194,20 +219,8 @@ public class AIAnalysisService {
         }
     }
 
-    // Call Gemini API for suggestions
-    private List<String> callGeminiForSuggestions(String errorData) {
-        try {
-            String prompt = createSuggestionsPrompt(errorData);
-            String geminiResponse = callGeminiAPI(prompt);
-            return parseSuggestionsResponse(geminiResponse);
-            
-        } catch (Exception e) {
-            Sentry.captureException(e);
-            return Arrays.asList("Gemini AI Suggestions failed: " + e.getMessage());
-        }
-    }
-
-    // Fetch real error data from Sentry API
+    // Fetches raw JSON data from Sentry's API
+    // Returns it as a readable summary of data
     private String fetchErrorsFromSentryAPI() {
         try {
             // Construct Sentry API URL for events
@@ -310,11 +323,13 @@ public class AIAnalysisService {
         return "UnknownError";
     }
 
+    // Returns raw JSON string from Sentry's API
     public String getRawSentryErrorData() {
         try {
             // Construct Sentry API URL for events
             String url = String.format("%s/api/0/projects/noah-3t/android/events/?full=true", sentryBaseUrl);
 
+            // Performs GET request on Sentry's API to recieve data
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "Bearer " + sentryApiToken);
             headers.set("Content-Type", "application/json");
