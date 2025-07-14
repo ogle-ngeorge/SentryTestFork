@@ -23,6 +23,7 @@ public class GitHubCodeFetcher {
     // Testing Purposes // 
     public static void main(String[] args){
         GitHubCodeFetcher fetcher = new GitHubCodeFetcher();
+        // Set githubApiToken via environment variable or application.properties for testing
         String stackTrace = "[https://github.com/DoubtfulCoder/SentryTest/blob/backend/SentryTestBackend/src/main/java/com/example/sentrytestbackend/controller/TestController.java#L100] at jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)";
         String result = fetcher.getGithubCode(stackTrace);
         System.out.println(result);
