@@ -31,13 +31,13 @@ public class SentrySpotlightConfig {
             logger.info("🔍 Spotlight enabled - Connect to: " + spotlightUrl);
             
             // Configure Sentry for Spotlight integration
-            Sentry.configureScope(scope -> {
-                scope.setTag("spotlight.enabled", "true");
-                scope.setTag("spotlight.url", spotlightUrl);
-            });
+            // Sentry.configureScope(scope -> {
+            //     scope.setTag("spotlight.enabled", "true");
+            //     scope.setTag("spotlight.url", spotlightUrl);
+            // });
             
-            // Log a message to verify Spotlight connection
-            Sentry.captureMessage("🔍 Spotlight connection established");
+            // // Log a message to verify Spotlight connection
+            // Sentry.captureMessage("🔍 Spotlight connection established");
             
             System.out.println("==========================================");
             System.out.println("🔍 SPOTLIGHT INTEGRATION ENABLED");

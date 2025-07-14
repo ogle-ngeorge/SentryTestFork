@@ -280,7 +280,7 @@ public class AIAnalysisService {
     // DATA RETRIEVE METHODS //    
 
     // Fetches raw JSON data from Sentry's API
-    // Returns it as a readable summary of data
+    // Returns it as a readable summary of all error data
     private String fetchErrorsFromSentryAPI() {
         try {
             // Construct Sentry API URL for events
@@ -299,6 +299,49 @@ public class AIAnalysisService {
             
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch errors from Sentry API", e);
+        }
+    }
+
+    // Returns raw JSON string from Sentry's API
+    public String getRawSentryErrorData() {
+        try {
+            // Construct Sentry API URL for events
+            String url = String.format("%s/api/0/projects/noah-3t/android/events/?full=true", sentryBaseUrl);
+
+            // Performs GET request on Sentry's API to recieve data
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + sentryApiToken);
+            headers.set("Content-Type", "application/json");
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                url, HttpMethod.GET, entity, String.class);
+
+            // Return the raw JSON string from Sentry
+            return response.getBody();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch errors from Sentry API", e);
+        }
+    }
+
+    // Fetches most recent error 
+    // USED FOR STACK TRACES
+    public String getMostRecentSentryError() {
+        try {
+            String allErrorsJson = getRawSentryErrorData(); // gets raw JSON array from Sentry
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(allErrorsJson);
+            if (rootNode.isArray() && rootNode.size() > 0) {
+                JsonNode mostRecentEvent = rootNode.get(0);
+                String singleEventArray = "[" + mostRecentEvent.toString() + "]";
+                return processSentryAPIResponse(singleEventArray);
+            }
+            return "No errors found.";
+        } catch (Exception e) {
+            Sentry.captureException(e);
+            return "Failed to fetch most recent error: " + e.getMessage();
         }
     }
     
@@ -354,10 +397,11 @@ public class AIAnalysisService {
         return errorData.toString();
     }
     
-    // Extract error type from Sentry event
+    // Parses a singular Sentry error and determines the type.
     private String extractErrorType(JsonNode event) {
         try {
             // Check exception entries
+            // Looks for errors like "NullPointerException" or "ArithmeticExceptions"
             JsonNode entries = event.path("entries");
             if (entries.isArray()) {
                 for (JsonNode entry : entries) {
@@ -369,41 +413,25 @@ public class AIAnalysisService {
                     }
                 }
             }
-            
-            // Check platform
+            // Check for message tyoe
+            String message = event.path("message").asText();
+            if (!message.isEmpty()){
+                return "Message: " + message;
+            }
+            // Check for level
+            String level = event.path("level").asText();
+            if (!level.isEmpty()){
+                return "Level" + level;
+            }
+            // Check platform (i.e if no exception found return "AndroidError")
             String platform = event.path("platform").asText();
             if ("android".equals(platform)) {
                 return "AndroidError";
             }
-            
         } catch (Exception e) {
-            // Fallback
+            // Fallback as it returns UnknownError if it can't categorize error.
         }
         
         return "UnknownError";
-    }
-
-    // Returns raw JSON string from Sentry's API
-    public String getRawSentryErrorData() {
-        try {
-            // Construct Sentry API URL for events
-            String url = String.format("%s/api/0/projects/noah-3t/android/events/?full=true", sentryBaseUrl);
-
-            // Performs GET request on Sentry's API to recieve data
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + sentryApiToken);
-            headers.set("Content-Type", "application/json");
-
-            HttpEntity<String> entity = new HttpEntity<>(headers);
-
-            ResponseEntity<String> response = restTemplate.exchange(
-                url, HttpMethod.GET, entity, String.class);
-
-            // Return the raw JSON string from Sentry
-            return response.getBody();
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch errors from Sentry API", e);
-        }
     }
 }
