@@ -336,7 +336,7 @@ public class AIAnalysisService {
             if (rootNode.isArray() && rootNode.size() > 0) {
                 JsonNode mostRecentEvent = rootNode.get(0);
                 String singleEventArray = "[" + mostRecentEvent.toString() + "]";
-                return processSentryAPIResponse(singleEventArray);
+                return singleEventArray;
             }
             return "No errors found.";
         } catch (Exception e) {
