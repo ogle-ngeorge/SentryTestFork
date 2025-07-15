@@ -43,6 +43,14 @@ public class GitHubController {
     return ResponseEntity.ok(String.join("\n", gemini_response));
    }
 
+// GET REQUEST TO GEMINI API TO REVIEW MULTIPLE CODE SNIPPETS W/ STACK TRACESA AND ERROR
+    // http://localhost:8081/api/github/gemini-review-multiple
+   @GetMapping("/gemini-review-multiple")
+   public ResponseEntity<List<List<String>>> geminiCodeReviewAll(@RequestParam(defaultValue = "5") int maxErrors) {
+    List<List<String>> gemini_response = aiAnalysisService.generateGithubCodeAnalysisForAll(stackTraceGenerator, maxErrors); 
+    return ResponseEntity.ok(gemini_response);
+   }
+
    @PostMapping("/fetch-code")
    public String fetchCode(@RequestBody String stackTrace) {
        try {

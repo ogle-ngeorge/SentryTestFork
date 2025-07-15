@@ -95,6 +95,35 @@ public class AIAnalysisService {
 
     // GEMINI METHODS BELOW //
 
+    // Call Gemini to Recieve x num of error and stack traces, and code snippets for review from those errors
+    public List<List<String>> generateGithubCodeAnalysisForAll(StackTraceGenerator stackTraceGenerator, int maxErrors) {
+        List<List<String>> allAnalyses = new ArrayList<>();
+        try {
+            String allErrorsJson = getRawSentryErrorData();
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(allErrorsJson);
+            if (rootNode.isArray()) {
+                int errorCount = 0;
+                for (JsonNode event : rootNode) {
+                    if (errorCount > maxErrors){
+                        break;
+                    }
+                    String singleEventArray = "[" + event.toString() + "]";
+                    String stackTrace = stackTraceGenerator.getStackTraceWithGithubLinks(singleEventArray);
+                    String sentryError = singleEventArray;
+                    String githubCode = githubCodeFetcher.getGithubCode(stackTrace);
+                    List<String> analysis = callGeminiForGithubCodeAnalysis(stackTrace, sentryError, githubCode);
+                    allAnalyses.add(analysis);
+                    errorCount++;
+                }
+            }
+        } catch (Exception e) {
+            Sentry.captureException(e);
+            allAnalyses.add(Arrays.asList("AI Analysis unavailable: " + e.getMessage()));
+        }
+        return allAnalyses;
+    }
+
     // Call Gemini API for code analysis
     private List<String> callGeminiForGithubCodeAnalysis(String stackTraceData, String sentryError, String githubCode){
         try{

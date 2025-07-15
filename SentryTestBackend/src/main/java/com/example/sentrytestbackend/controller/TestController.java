@@ -17,8 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.sentrytestbackend.service.AIAnalysisService;
-import com.example.sentrytestbackend.service.StackTraceGenerator;
-import com.example.sentrytestbackend.config.SentrySpotlightConfig;
 import io.sentry.Sentry;
 
 @RestController
@@ -31,12 +29,6 @@ public class TestController {
     @Autowired
     private AIAnalysisService aiAnalysisService;
     
-    @Autowired
-    private SentrySpotlightConfig sentrySpotlightConfig;
-
-    @Autowired
-    private StackTraceGenerator stackTraceGenerator;
-
     // GET REQUEST TO CHECK IF BACKEND RUNNING ~ Returns UP with Timestamp.
     // Makes sure Server works before running other tests
     // http://localhost:8081/api/health
@@ -128,14 +120,6 @@ public class TestController {
         return ResponseEntity.ok(analysis);
     }
 
-    // GET REQUEST TO GET GEMINI RESPONSE ON STACKTRACE ERRORS
-    // http://localhost:8081/api/gemini-stacktrace
-    @GetMapping("/gemini-stacktrace")
-    public ResponseEntity<List<String>> getGeminiStackTrace(){
-        List<String> interpretation = aiAnalysisService.generateTraceInterpretation(stackTraceGenerator);
-        return ResponseEntity.ok(interpretation);
-    }
-
     // GET REQUEST TO GET AI SUGGESTIONS
     // http://localhost:8081/api/gemini-suggestions
     @GetMapping("/gemini-suggestions")
@@ -143,31 +127,4 @@ public class TestController {
         List<String> suggestions = aiAnalysisService.generateSuggestion();
         return ResponseEntity.ok(suggestions);
     }
-
-    // GET REQUEST TO SEE STACK TRACE FROM MOST RECENT ERROR
-    // http://localhost:8081/api/see-stack-trace
-    // Currently in classic Java format
-    @GetMapping("/see-stack-trace")
-    public ResponseEntity<String> seeStackTrace() {
-        String stackTrace = stackTraceGenerator.getMostRecentStackTrace();
-        return ResponseEntity.ok(stackTrace);
-    }
-
-    // GET REQUEST TO SEE STACK TRACE FROM MOST RECENt ERROR WITH GITHUB CODE CONENCTIONS
-    // http://localhost:8081/api/see-stack-trace-github
-    // Currently in classic Java format
-    @GetMapping("/see-stack-trace-github")
-    public ResponseEntity<String> seeStackTraceGithub(){
-        String stackTrace = stackTraceGenerator.getMostRecentStackTraceWithGithubLinks();
-        return ResponseEntity.ok(stackTrace);
-    }
-
-    // GET REQUEST TO VIEW SENTRY ERROR
-    // http://localhost:8081/api/test-sentry-errors
-    @GetMapping("/test-sentry-errors")
-    public ResponseEntity<String> testSentryErrors() {
-        return ResponseEntity.ok("Endpoint is working!");
-    }   
-
-
 }
