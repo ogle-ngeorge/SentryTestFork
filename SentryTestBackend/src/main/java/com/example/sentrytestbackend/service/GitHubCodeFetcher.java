@@ -1,5 +1,7 @@
 package com.example.sentrytestbackend.service;
 
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.*;
@@ -9,12 +11,14 @@ import java.util.Base64;
 import org.springframework.beans.factory.annotation.Value;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 /**
  * Service for fetching code snippets from GitHub using the GitHub API.
  * Given a file path and line number, returns a snippet of code around that line.
  */
-//@Service
+@Service
 public class GitHubCodeFetcher {
     @Value("${github.api.token}")
     private String githubApiToken;
@@ -23,25 +27,33 @@ public class GitHubCodeFetcher {
     // Testing Purposes // 
     public static void main(String[] args){
         GitHubCodeFetcher fetcher = new GitHubCodeFetcher();
-        // Set githubApiToken via environment variable or application.properties for testing
         String stackTrace = "[https://github.com/DoubtfulCoder/SentryTest/blob/backend/SentryTestBackend/src/main/java/com/example/sentrytestbackend/controller/TestController.java#L100] at jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)";
         String result = fetcher.getGithubCode(stackTrace);
         System.out.println(result);
     }
 
     // GETTER METHODS //
-    private String getGithubCode(String stackTrace){
+    public String getGithubCode(String stackTrace){
         ArrayNode githubLinks = fetchGithubLinks(stackTrace);
         StringBuilder allCodeSnippets = new StringBuilder(); // Builds code into one large string
 
         for (int i = 0; i < githubLinks.size(); i++){
             JsonNode linkNode = githubLinks.get(i);
             String githubLink = linkNode.asText();
-            String codeSnippet = mapToGithubCode(githubLink, 10); // 10 lines of code context
-            allCodeSnippets.append("Snippet for: ").append(githubLink).append("\n").append(codeSnippet).append("\n\n");
+            try {
+                String codeSnippet = mapToGithubCode(githubLink, 10); // 10 lines of code context
+                allCodeSnippets.append("Snippet for: ").append(githubLink).append("\n").append(codeSnippet).append("\n\n");
+            } catch (org.springframework.web.client.HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                // Ignore links that are not found
+                continue;
+            } else {
+                throw e; // Rethrow other errors
+            }
         }
-        return allCodeSnippets.toString();
     }
+    return allCodeSnippets.toString();
+}
 
     // HELPER METHODS //
 

@@ -20,6 +20,9 @@ public class AIAnalysisService {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private GitHubCodeFetcher githubCodeFetcher;
+
     // Gemini API Configuration
     private static final String GEMINI_API_KEY = "AIzaSyC7IAPYcawnLgDooqNbNmq9J-CWodNF_Kk";
     private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + GEMINI_API_KEY;
@@ -43,6 +46,21 @@ public class AIAnalysisService {
     }
     
     // GEMINI DATA CALL GENERATE METHODS //
+
+    // Create a code analysis using github code, recent sentry error, and stacktrace from recent sentry error
+    public List<String> generateGithubCodeAnalysis(StackTraceGenerator stackTraceGenerator){
+        try {
+            String stackTrace = stackTraceGenerator.getMostRecentStackTraceWithGithubLinks();
+            String sentryError = getMostRecentSentryError();
+            String githubCode = githubCodeFetcher.getGithubCode(stackTrace);
+            return callGeminiForGithubCodeAnalysis(stackTrace, sentryError, githubCode);
+
+        } catch (Exception e) {
+            Sentry.captureException(e);
+            return Arrays.asList("AI Analysis unavailable");
+        }  
+    }
+
     // Using Data from readSentryErrorData, create an analysis using patterns
     public String generateAnalysis(){
         try {
@@ -76,6 +94,18 @@ public class AIAnalysisService {
     }
 
     // GEMINI METHODS BELOW //
+
+    // Call Gemini API for code analysis
+    private List<String> callGeminiForGithubCodeAnalysis(String stackTraceData, String sentryError, String githubCode){
+        try{
+            String prompt = createCodeAnalysisPrompt(stackTraceData, sentryError, githubCode);
+            String geminiResponse = callGeminiAPI(prompt);
+            return parseSuggestionsResponse(geminiResponse);
+        } catch (Exception e){
+            Sentry.captureException(e);
+            return Arrays.asList("Gemini AI Code Review failed: " + e.getMessage());
+        }
+    }
 
     // Call Gemini API for suggestions
     private List<String> callGeminiForSuggestions(String errorData) {
@@ -116,6 +146,21 @@ public class AIAnalysisService {
     }
 
     // GEMINI PROMPT GENERATION METHODS //
+
+    // Using the StackTrace, Error Message, and code from github source code
+    // Create a diagnosis and analysis as to what causes the problem using Gemini
+    private String createCodeAnalysisPrompt(String stackTraceData, String sentryError, String githubCode){
+        return "You are an expert softare engineer analyzing stack trace data and error data from sentry. Please analyze the following lines " +
+        " and try to figure out where the error is coming from and what line." +
+        " Refer to the GitHub links in the stack trace for the exact code location." +
+        " Refer to the Stack Trace, Errors, and Code from Github for context. " +
+        " Please post the code snippet and be brief. " +
+        " Please ignore HttpClientErrorException with status 404 errors \n\n" +
+        " Stack Trace:\n" + stackTraceData + "\n\n" +
+        " Sentry Error: \n" + sentryError + "\n\n" +
+        " Code from github: \n" + githubCode + "\n\n";
+    }
+
 
     // Create analysis prompt to interpret stack trace data for Gemini
     private String createStackAnalysisPrompt(String stackTraceData) {
