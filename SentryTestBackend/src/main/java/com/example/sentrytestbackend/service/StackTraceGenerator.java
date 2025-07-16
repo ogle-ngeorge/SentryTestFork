@@ -21,7 +21,6 @@ public class StackTraceGenerator {
     // Must trigger an error before using
     public String getMostRecentStackTrace() {
     try {
-        waitTimer();
         JsonNode mostRecentEvent = getMostRecentSentryEvent();
         if (mostRecentEvent != null) {
             JsonNode exception = getExceptionNode(mostRecentEvent);
@@ -41,7 +40,6 @@ public class StackTraceGenerator {
 // This Method maps the code to our Github Repo, for accurate lines
 public String getMostRecentStackTraceWithGithubLinks() {
     try {
-        waitTimer();
         JsonNode mostRecentEvent = getMostRecentSentryEvent();
         if (mostRecentEvent != null) {
             JsonNode exception = getExceptionNode(mostRecentEvent);
@@ -144,12 +142,4 @@ private String buildGithubLink(String module, String filename, int lineno) {
     return githubUrl;
 }
 
-// Helper method to make it wait 10 seconds before receiving the error.
-private void waitTimer(){
-    try{
-        Thread.sleep(10000); // 10 seconds
-    } catch (InterruptedException ie){
-        Thread.currentThread().interrupt();
-    }
-}
 }

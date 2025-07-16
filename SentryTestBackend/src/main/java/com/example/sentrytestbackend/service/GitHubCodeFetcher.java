@@ -56,7 +56,6 @@ public class GitHubCodeFetcher {
 }
 
     // HELPER METHODS //
-    
 
     // Fetches and parses StackTrace w/ Github Links
     // Requires use of getMostRecentStackTraceWithGithubLinks() from StackTraceGenerator

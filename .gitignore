@@ -21,3 +21,7 @@ sentry.properties
 
 # Sentry backend
 SentryTestBackend/.gradle
+
+[application.properties](http://_vscodecontentref_/3)
+
+SentryTestBackend/src/main/resources/application.properties

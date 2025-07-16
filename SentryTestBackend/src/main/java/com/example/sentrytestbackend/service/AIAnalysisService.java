@@ -25,7 +25,7 @@ public class AIAnalysisService {
 
     // Gemini API Configuration
     private static final String GEMINI_API_KEY = "AIzaSyC7IAPYcawnLgDooqNbNmq9J-CWodNF_Kk";
-    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + GEMINI_API_KEY;
+    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY;
     
     // Sentry API Configuration (for data fetching)
     @Value("${sentry.api.url:https://noah-3t.sentry.io}")
@@ -109,7 +109,7 @@ public class AIAnalysisService {
                         break;
                     }
                     String singleEventArray = "[" + event.toString() + "]";
-                    String stackTrace = stackTraceGenerator.getStackTraceWithGithubLinks(singleEventArray);
+                    String stackTrace = stackTraceGenerator.getMostRecentStackTraceWithGithubLinks();
                     String sentryError = singleEventArray;
                     String githubCode = githubCodeFetcher.getGithubCode(stackTrace);
                     List<String> analysis = callGeminiForGithubCodeAnalysis(stackTrace, sentryError, githubCode);
