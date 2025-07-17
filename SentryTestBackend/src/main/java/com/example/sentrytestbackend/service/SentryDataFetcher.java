@@ -75,8 +75,7 @@ public List<Map<String, String>> fetchAllSentryProjects() {
         for (JsonNode project : data) {
             Map<String, String> projectInfo = new HashMap<>();
             projectInfo.put("id", project.path("id").asText());
-            projectInfo.put("slug", project.path("slug").asText());
-            // Optionally: projectInfo.put("name", project.path("name").asText());
+            projectInfo.put("name", project.path("name").asText());
             projects.add(projectInfo);
         }
         return projects;
@@ -87,6 +86,28 @@ public List<Map<String, String>> fetchAllSentryProjects() {
     }
 }
 
+// Gives String ArrayList of Project Names for Given Sentry User or Org
+// Returns ArrayList of Project Names
+public String fetchSentryErrorsByProject(String projectName) {
+    try {
+        // Replace "noah-3t" with your actual organization slug if different
+        String url = String.format("%s/api/0/projects/noah-3t/%s/events/?full=true", sentryBaseUrl, projectName);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + sentryApiToken);
+        headers.set("Content-Type", "application/json");
+
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+        return response.getBody();
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        Sentry.captureException(e);
+        throw new RuntimeException("Unable to fetch data from Sentry for project:" + projectName);
+    }
+}
 // Collects x amount of errors from Sentry as a Json Array
 // Collects recent errors
 // Parameter ~ Int value to determine how many errors to fetch
@@ -134,7 +155,29 @@ public List<Map<String, String>> fetchAllSentryProjects() {
 
 // HELPER METHODS //
 // Collection of methods to help accomplish tasks
-// (i.e, generate random IDs)
+// (i.e, generate random IDs, Parsing)
+
+// Parses Errors and Returns the titles
+// Params ~ JSON Erros from Sentry
+// Returns List<String> ArrayList of All Error Titles
+public List<String> parseErrorTitles(String sentryErrors){
+    try {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode data = mapper.readTree(sentryErrors);
+
+        Set<String> uniqueTitles = new HashSet<>();
+        for (JsonNode event : data) {
+            String title = event.path("title").asText();
+            if (!title.isEmpty()) {
+                uniqueTitles.add(title);
+            }
+        }
+        return new ArrayList<>(uniqueTitles);
+    } catch (Exception e) {
+        Sentry.captureException(e);
+        throw new RuntimeException("Unable to parse error titles from Sentry JSON");
+    }
+}
 
 // Generate random ID for grouped errors
 // Will be used to 
