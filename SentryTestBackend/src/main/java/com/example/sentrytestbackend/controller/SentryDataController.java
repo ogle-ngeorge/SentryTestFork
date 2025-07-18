@@ -57,7 +57,7 @@ public class SentryDataController {
     // Format: http://localhost:8081/api/sentry-errors/id-error-map/project/{project}
     // http://localhost:8081/api/sentry-errors/id-error-map/project/android
     @GetMapping("/id-error-map/project/{project}")
-    public ResponseEntity<Map<String, String>> mapIdsWithErroName(
+    public ResponseEntity<Map<String, String>> mapIdsWithErrorName(
         @PathVariable String project){
         Map<String, String> dataMap = sentryDataFetcher.fetchMapIdWithErrorName(organizationId, project);
         return ResponseEntity.ok(dataMap);
@@ -95,6 +95,63 @@ public class SentryDataController {
 
         return ResponseEntity.ok(info);
     }
+
+    // GET REQUEST TO GET ERROR MESSAGE + STACK TRACE BY PROJECT NAME & EVENT ID
+    // Format: http://localhost:8081/api/sentry-errors/project/{project}/errors?ids={id1},{id2},{id3}
+    // http://localhost:8081/api/sentry-errors/project/android/errors?ids=6748881802,6744676878
+    @GetMapping("/project/{project}/errors")
+    public ResponseEntity<List<Map<String, String>>> fetchErrorsByIds(
+        @PathVariable String project,
+        @RequestParam("ids") String idsCsv) {
+
+        Set<String> ids = Arrays.stream(idsCsv.split(","))
+            .map(String::trim)
+            .collect(Collectors.toSet());
+
+        String issuesJson = sentryDataFetcher.curlForSentryErrorDataByProject(organizationId, project);
+        List<Map<String, String>> result = new ArrayList<>();
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode issues = mapper.readTree(issuesJson);
+
+            for (JsonNode issue : issues) {
+                String issueId = issue.path("id").asText();
+                if (ids.contains(issueId)) {
+                    String title = issue.path("title").asText();
+                    String timestamp = issue.path("lastSeen").asText();
+                    String projectId = issue.path("project").path("id").asText();
+
+                    // Get first eventId for this issue
+                    List<String> eventIds = sentryDataFetcher.getEventIds(issueId);
+                    String stackTrace = "";
+                    if (!eventIds.isEmpty()) {
+                        JsonNode eventJson = sentryDataFetcher.curlForStacktraceByEventId(issueId, eventIds.get(0));
+                        JsonNode exceptionNode = stackTraceGenerator.getExceptionNode(eventJson);
+                        stackTrace = stackTraceGenerator.buildStackTraceString(exceptionNode, true);
+                    }
+
+                    Map<String, String> info = new LinkedHashMap<>();
+                    info.put("id", issueId);
+                    info.put("title", title);
+                    info.put("timestamp", timestamp);
+                    info.put("projectId", projectId);
+                    info.put("stackTrace", stackTrace);
+
+                    result.add(info);
+                }
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+
+
+
+
+
 
     // GET REQUEST TO GET GROUPED ERROR MESSAGES FOR ALL ERRORS IN PROJECT
     // Format: http://localhost:8081/api/sentry-errors/project/{project}/errors

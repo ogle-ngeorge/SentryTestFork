@@ -21,7 +21,6 @@ import io.sentry.Sentry;
 
 @RestController
 @RequestMapping("/api") // Base Annotation for base URL paths (EX ~ )
-@CrossOrigin(origins = "*") // Allow all origins for testing
 public class TestController {
 
     private final Random random = new Random();

@@ -160,7 +160,25 @@ public class SentryDataFetcher {
             return result;
         } catch (Exception e){
             Sentry.captureException(e);
-            throw new RuntimeException("Unable to fetch erorr id-name map from Sentry");
+            throw new RuntimeException("Unable to fetch error id-name map from Sentry");
+        }
+    }
+
+    public Set<String> fetchErrorIdList(String organizationId, String projectSlug){
+        try{
+            String issuesJson = curlForSentryErrorDataByProject(organizationId, projectSlug);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode data = mapper.readTree(issuesJson);
+
+            Set<String> result = new HashSet<>();
+            for (JsonNode event : data){
+                String eventId = event.path("id").asText();
+                result.add(eventId);
+            }   
+            return result;
+        } catch (Exception e){
+            Sentry.captureException(e);
+            throw new RuntimeException("Unable to fetch list of error ids from Sentry");
         }
     }
 // HELPER METHODS //
