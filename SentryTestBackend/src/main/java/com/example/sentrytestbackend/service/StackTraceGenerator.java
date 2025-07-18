@@ -68,7 +68,7 @@ private JsonNode getMostRecentSentryEvent() throws Exception {
 
 // Fetches the most recent Sentry Event as a JsonNode
 // Return null if not found
-private JsonNode getExceptionNode(JsonNode event) {
+public JsonNode getExceptionNode(JsonNode event) {
     JsonNode entries = event.path("entries");
     if (entries.isArray()) {
         for (JsonNode entry : entries) {
@@ -85,7 +85,7 @@ private JsonNode getExceptionNode(JsonNode event) {
 
 // Builds a readable stack trace string from exception node
 // If user wants Github links, Githublinks are added.
-private String buildStackTraceString(JsonNode exception, boolean withGithubLinks) {
+public String buildStackTraceString(JsonNode exception, boolean withGithubLinks) {
     // Get exception type and value
     String exceptionType = exception.has("type")
             ? exception.path("type").asText()
