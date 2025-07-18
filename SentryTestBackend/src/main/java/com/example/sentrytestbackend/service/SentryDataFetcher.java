@@ -153,8 +153,8 @@ public class SentryDataFetcher {
             Map<String, String> result = new HashMap<>();
             for (JsonNode event : data) {
                 Map<String, String> map = new HashMap<>();
-                String id = "event id: " + event.path("id").asText();
-                String name = "error name: " + event.path("title").asText();
+                String id = "event_id: " + event.path("id").asText();
+                String name = "error_name: " + event.path("title").asText();
                 result.put(id, name);
             }
             return result;
