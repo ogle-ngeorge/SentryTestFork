@@ -15,6 +15,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.HashMap;
 import com.example.sentrytestbackend.service.StackTraceGenerator;
 import java.util.LinkedHashMap;
+import java.util.Set;
+import java.util.Arrays;
+import java.util.stream.Collectors;
+import java.util.ArrayList;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 
 @RestController
@@ -48,6 +53,17 @@ public class SentryDataController {
         return ResponseEntity.ok(titles);
     }
 
+    // GET REQUEST TO MAP GROUPED ERRROR ID TO ERROR NAME
+    // Format: http://localhost:8081/api/sentry-errors/id-error-map/project/{project}
+    // http://localhost:8081/api/sentry-errors/id-error-map/project/android
+    @GetMapping("/id-error-map/project/{project}")
+    public ResponseEntity<Map<String, String>> mapIdsWithErroName(
+        @PathVariable String project){
+        Map<String, String> dataMap = sentryDataFetcher.fetchMapIdWithErrorName(organizationId, project);
+        return ResponseEntity.ok(dataMap);
+        }
+    
+
     // GET REQUEST TO GET ERROR MESSAGE + STACK TRACE BY PROJECT NAME & EVENT ID
     // Format: http://localhost:8081/api/sentry-errors/project/{projectSlug}/errorId/{errorId}
     // http://localhost:8081/api/sentry-errors/project/android/errorId/6753485248
@@ -78,8 +94,17 @@ public class SentryDataController {
         info.put("stackTrace", stackTrace);
 
         return ResponseEntity.ok(info);
-}
-    
+    }
+
+    // GET REQUEST TO GET GROUPED ERROR MESSAGES FOR ALL ERRORS IN PROJECT
+    // Format: http://localhost:8081/api/sentry-errors/project/{project}/errors
+    // http://localhost:8081/api/sentry-errors/project/android/errors
+    // @GetMapping("/project/{project}/errors")
+    // public ResponseEntity<List<Map<String, String>>> fetchErrorsByTitles(
+    //     @PathVariable String project,
+    //     @RequestParam("ids") String idsCsv) {
+
+    // }
 
     //
     // https://sentry.io/api/0/projects/noah-3t/android/issues/

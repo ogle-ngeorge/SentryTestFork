@@ -90,26 +90,26 @@ public class SentryDataFetcher {
 // Gives String ArrayList of Project Names for Given Sentry User or Org
 // Param ~ String of Project Name to get errors from
 // Returns ArrayList of Project Names
-public String fetchSentryErrorNamesByProject(String projectName) {
-    try {
-        // Replace "noah-3t" with your actual organization slug if different
-        String url = String.format("%s/api/0/projects/noah-3t/%s/events/?full=true", sentryBaseUrl, projectName);
+    public String fetchSentryErrorNamesByProject(String projectName) {
+        try {
+            // Replace "noah-3t" with your actual organization slug if different
+            String url = String.format("%s/api/0/projects/noah-3t/%s/events/?full=true", sentryBaseUrl, projectName);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + sentryApiToken);
-        headers.set("Content-Type", "application/json");
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + sentryApiToken);
+            headers.set("Content-Type", "application/json");
 
-        HttpEntity<String> entity = new HttpEntity<>(headers);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
 
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-        return response.getBody();
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            return response.getBody();
 
-    } catch (Exception e) {
-        e.printStackTrace();
-        Sentry.captureException(e);
-        throw new RuntimeException("Unable to fetch data from Sentry for project:" + projectName);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Sentry.captureException(e);
+            throw new RuntimeException("Unable to fetch data from Sentry for project:" + projectName);
+        }
     }
-}
 
 // Fetches a specific Event error message based on project and Eventid
 // Parameter ~ String organization id from sentry
@@ -144,13 +144,34 @@ public String fetchSentryErrorNamesByProject(String projectName) {
         return stackTraceJson.toString();
     }
 
+    public Map<String, String> fetchMapIdWithErrorName(String organizationId, String projectSlug){
+        try {
+            String issuesJson = curlForSentryErrorDataByProject(organizationId, projectSlug);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode data = mapper.readTree(issuesJson);
+
+            Map<String, String> result = new HashMap<>();
+            for (JsonNode event : data) {
+                Map<String, String> map = new HashMap<>();
+                String id = "event id: " + event.path("id").asText();
+                String name = "error name: " + event.path("title").asText();
+                result.put(id, name);
+            }
+            return result;
+        } catch (Exception e){
+            Sentry.captureException(e);
+            throw new RuntimeException("Unable to fetch erorr id-name map from Sentry");
+        }
+    }
 // HELPER METHODS //
 // Collection of methods to help accomplish tasks
 // (i.e, generate random IDs, Parsing, Curling, Formatting)
 
+
 // Curls to recieve Sentry Errors
 // Only shows one unique error data per error name
 // Requires Orgnization_id & project_slug (project name)
+// Same as this endpoint: https://sentry.io/api/0/projects/noah-3t/android/issues/
     public String curlForSentryErrorDataByProject(String organizationId, String projectSlug){
         String url = String.format("%s/api/0/projects/%s/%s/issues/", sentryBaseUrl, organizationId, projectSlug);
         HttpHeaders headers = new HttpHeaders();
@@ -162,6 +183,8 @@ public String fetchSentryErrorNamesByProject(String projectName) {
         return issuesJson; // Returns JSON string
     }
 
+// Curls to recieve Event ID to get stacktrace
+// Requires Event issue ID and eventId (from getEventIds)
     public JsonNode curlForStacktraceByEventId(String issueId, String eventId) {
         try {
             String url = String.format("%s/api/0/issues/%s/events/%s/", sentryBaseUrl, issueId, eventId);
