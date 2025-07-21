@@ -98,7 +98,7 @@ public class SentryDataController {
 
     // GET REQUEST TO GET ERROR MESSAGE + STACK TRACE BY PROJECT NAME & EVENT ID
     // Format: http://localhost:8081/api/sentry-errors/project/{project}/errors?ids={id1},{id2},{id3}
-    // http://localhost:8081/api/sentry-errors/project/android/errors?ids=6748881802,6744676878
+    // http://localhost:8081/api/sentry-errors/project/android/errors?ids=6748881802,6748490575,6748113930,6745761073,
     @GetMapping("/project/{project}/errors")
     public ResponseEntity<List<Map<String, String>>> fetchErrorsByIds(
         @PathVariable String project,
@@ -146,6 +146,7 @@ public class SentryDataController {
             return ResponseEntity.status(500).build();
         }
     }
+
 
 
 

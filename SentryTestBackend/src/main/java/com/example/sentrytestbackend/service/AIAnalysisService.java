@@ -125,7 +125,7 @@ public class AIAnalysisService {
     }
 
     // Call Gemini API for code analysis
-    private List<String> callGeminiForGithubCodeAnalysis(String stackTraceData, String sentryError, String githubCode){
+    public List<String> callGeminiForGithubCodeAnalysis(String stackTraceData, String sentryError, String githubCode){
         try{
             String prompt = createCodeAnalysisPrompt(stackTraceData, sentryError, githubCode);
             String geminiResponse = callGeminiAPI(prompt);
@@ -183,8 +183,7 @@ public class AIAnalysisService {
         " and try to figure out where the error is coming from and what line." +
         " Refer to the GitHub links in the stack trace for the exact code location." +
         " Refer to the Stack Trace, Errors, and Code from Github for context. " +
-        " Please post the code snippet and be brief. " +
-        " Please ignore HttpClientErrorException with status 404 errors \n\n" +
+        " Please post the code snippet and be brief. \n\n" +
         " Stack Trace:\n" + stackTraceData + "\n\n" +
         " Sentry Error: \n" + sentryError + "\n\n" +
         " Code from github: \n" + githubCode + "\n\n";
