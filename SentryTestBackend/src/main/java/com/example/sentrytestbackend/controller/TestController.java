@@ -67,40 +67,25 @@ public class TestController {
     // http://localhost:8081/api/test-error
     @GetMapping("/test-error")
     public ResponseEntity<Map<String, String>> testError() {
-        try {
-            // Intentionally cause an error for testing
-            throw new RuntimeException("This is a test error for Sentry!");
-        } catch (Exception e) {
-            // Capture the exception in Sentry
-            Sentry.captureException(e);
-            Sentry.captureMessage("This is a test message");
-            
-            Map<String, String> response = new HashMap<>();
-            response.put("error", "A test error occurred!");
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(500).body(response);
-        }
+        // Intentionally cause an error for testing
+        throw new RuntimeException("This is a test error for Sentry!");
     }
     
     // GET REQUEST TO SEND DIVIDE BY ZERO ERROR
     // http://localhost:8081/api/divide-by-zero
     @GetMapping("/divide-by-zero")
-    public ResponseEntity<Map<String, String>> testDivideByZero(){
+    public ResponseEntity<?> testDivideByZero() {
         try {
-            int x = 1;
-            x = x / 0;
-        } catch (Exception e) {
-            Sentry.captureException(e);
-            Sentry.captureMessage("Divide by Zero Error!");
-
-            Map<String, String> response = new HashMap<>();
-            response.put("error", "Tried to divide by zero!");
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(500).body(response);
+            int x = 0;
+            int result = 1 / x;
+            return ResponseEntity.ok(result);
+        } catch (ArithmeticException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Divide by zero error!");
+            error.put("message", e.getMessage());
+            Sentry.captureException(e); // Optional: send to Sentry
+            return ResponseEntity.status(500).body(error);
         }
-        Map<String, String> response = new HashMap<>();
-        response.put("result", "No error occurred");
-        return ResponseEntity.ok(response);
     }
 
     // GET REQUEST TO GET AI TO VIEW ERROR DATA
