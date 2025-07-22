@@ -59,6 +59,7 @@ public class SentryDataController {
                 errorInfo.put("id", issue.path("id").asText());
                 errorInfo.put("title", issue.path("title").asText());
                 errorInfo.put("count", issue.path("count").asInt());
+                errorInfo.put("firstSeen", issue.path("firstSeen").asText());
                 errorInfo.put("lastSeen", issue.path("lastSeen").asText());
                 errorList.add(errorInfo);
             }
@@ -104,7 +105,8 @@ public class SentryDataController {
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("id", errorData.path("id").asText());
         info.put("title", errorData.path("title").asText());
-        info.put("timestamp", errorData.path("lastSeen").asText());
+        info.put("firstSeen", errorData.path("firstSeen").asText());
+        info.put("lastSeen", errorData.path("lastSeen").asText());
         info.put("projectId", errorData.path("project").path("id").asText());
         info.put("count", errorData.path("count").asInt());
         info.put("stackTrace", stackTrace);
@@ -135,7 +137,8 @@ public class SentryDataController {
                 String issueId = issue.path("id").asText();
                 if (ids.contains(issueId)) {
                     String title = issue.path("title").asText();
-                    String timestamp = issue.path("lastSeen").asText();
+                    String firstSeen = issue.path("firstSeen").asText();
+                    String lastSeen = issue.path("lastSeen").asText();
                     String projectId = issue.path("project").path("id").asText();
 
                     // Get first eventId for this issue
@@ -150,7 +153,8 @@ public class SentryDataController {
                     Map<String, Object> info = new LinkedHashMap<>();
                     info.put("id", issueId);
                     info.put("title", title);
-                    info.put("timestamp", timestamp);
+                    info.put("firstSeen", firstSeen);
+                    info.put("lastSeen", lastSeen);
                     info.put("projectId", projectId);
                     info.put("count", issue.path("count").asInt());
                     info.put("stackTrace", stackTrace);
