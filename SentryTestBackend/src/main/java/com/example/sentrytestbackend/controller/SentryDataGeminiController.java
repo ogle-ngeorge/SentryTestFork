@@ -53,14 +53,28 @@ public class SentryDataGeminiController {
 
         JsonNode errorData = sentryDataFetcher.fetchEventsByProject(
             organizationId, project, errorId);
-        String stackTrace = sentryDataFetcher.fetchStackTrace(organizationId, project, errorId);
+        
+        // Get properly formatted stack trace with GitHub links
+        List<String> eventIds = sentryDataFetcher.getEventIds(errorId);
+        if (eventIds.isEmpty()) {
+            throw new RuntimeException("No event IDs found for issue " + errorId);
+        }
+        JsonNode stackTraceJson = sentryDataFetcher.curlForStacktraceByEventId(errorId, eventIds.get(0));
+        JsonNode exceptionNode = stackTraceController.getExceptionNode(stackTraceJson);
+        String stackTrace = stackTraceController.buildStackTraceString(exceptionNode, true); // true = with GitHub links
+        
+        // Now fetch GitHub code using the formatted stack trace with links
         String githubCode = githubCodeFetcher.getGithubCode(stackTrace);
+        
+        // Extract enhanced context (breadcrumbs, request details, error metadata)
+        Map<String, Object> enhancedContext = sentryDataFetcher.extractEnhancedContext(errorData);
 
         // Use callGeminiForGithubCodeAnalysis to get suggestions
-        List<String> suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysis(
+        List<String> suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysisWithContext(
             stackTrace,
             errorData.toString(),
-            githubCode
+            githubCode,
+            enhancedContext
         );
 
         Map<String, String> response = new LinkedHashMap<>();
@@ -85,13 +99,28 @@ public class SentryDataGeminiController {
 
         for (String errorId : ids) {
             JsonNode errorData = sentryDataFetcher.fetchEventsByProject(organizationId, project, errorId);
-            String stackTrace = sentryDataFetcher.fetchStackTrace(organizationId, project, errorId);
+            
+            // Get properly formatted stack trace with GitHub links for each error
+            List<String> eventIds = sentryDataFetcher.getEventIds(errorId);
+            if (eventIds.isEmpty()) {
+                // Skip this error if no event IDs found
+                continue;
+            }
+            JsonNode stackTraceJson = sentryDataFetcher.curlForStacktraceByEventId(errorId, eventIds.get(0));
+            JsonNode exceptionNode = stackTraceController.getExceptionNode(stackTraceJson);
+            String stackTrace = stackTraceController.buildStackTraceString(exceptionNode, true); // true = with GitHub links
+            
+            // Now fetch GitHub code using the formatted stack trace with links
             String githubCode = githubCodeFetcher.getGithubCode(stackTrace);
+            
+            // Extract enhanced context for each error
+            Map<String, Object> enhancedContext = sentryDataFetcher.extractEnhancedContext(errorData);
 
-            List<String> suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysis(
+            List<String> suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysisWithContext(
                 stackTrace,
                 errorData.toString(),
-                githubCode
+                githubCode,
+                enhancedContext
             );
 
             Map<String, Object> result = new LinkedHashMap<>();
