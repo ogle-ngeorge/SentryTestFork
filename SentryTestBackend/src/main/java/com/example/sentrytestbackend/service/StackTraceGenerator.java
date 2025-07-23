@@ -12,7 +12,7 @@ public class StackTraceGenerator {
     private AIAnalysisService aiAnalysisService;
 
     // Variables to connect to github Repo
-    String githubRepo = "https://github.com/DoubtfulCoder/SentryTest";
+    String githubRepo = "https://github.com/ogle-ngeorge/SentryTestFork";
     String branch = "backend";
     String srcRoot = "SentryTestBackend/src/main/java/";
 
