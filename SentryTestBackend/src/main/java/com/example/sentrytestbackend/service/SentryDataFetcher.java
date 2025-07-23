@@ -275,4 +275,236 @@ public String randomUUID(){
     return UUID.randomUUID().toString();
 }
 
+// Extract enhanced context from Sentry event data for better Gemini analysis
+public Map<String, Object> extractEnhancedContext(JsonNode eventData) {
+    Map<String, Object> enhancedContext = new HashMap<>();
+    
+    try {
+        // Extract breadcrumbs
+        List<Map<String, Object>> breadcrumbs = extractBreadcrumbs(eventData);
+        if (!breadcrumbs.isEmpty()) {
+            enhancedContext.put("breadcrumbs", breadcrumbs);
+        }
+        
+        // Extract HTTP request details
+        Map<String, Object> requestDetails = extractRequestDetails(eventData);
+        if (!requestDetails.isEmpty()) {
+            enhancedContext.put("request", requestDetails);
+        }
+        
+        // Extract error metadata
+        Map<String, Object> errorMetadata = extractErrorMetadata(eventData);
+        if (!errorMetadata.isEmpty()) {
+            enhancedContext.put("error", errorMetadata);
+        }
+        
+        // Extract basic context info
+        if (eventData.has("user") && !eventData.path("user").isEmpty()) {
+            JsonNode user = eventData.path("user");
+            Map<String, Object> userInfo = new HashMap<>();
+            if (user.has("ip_address") && !user.path("ip_address").isNull()) {
+                userInfo.put("ip_address", user.path("ip_address").asText());
+            }
+            if (user.has("geo") && !user.path("geo").isEmpty()) {
+                JsonNode geo = user.path("geo");
+                Map<String, String> geoInfo = new HashMap<>();
+                if (geo.has("country_code")) geoInfo.put("country", geo.path("country_code").asText());
+                if (geo.has("city")) geoInfo.put("city", geo.path("city").asText());
+                if (!geoInfo.isEmpty()) userInfo.put("geo", geoInfo);
+            }
+            if (!userInfo.isEmpty()) {
+                enhancedContext.put("user", userInfo);
+            }
+        }
+        
+        // Extract environment info
+        if (eventData.has("tags") && eventData.path("tags").isArray()) {
+            Map<String, String> environmentInfo = new HashMap<>();
+            for (JsonNode tag : eventData.path("tags")) {
+                String key = tag.path("key").asText();
+                String value = tag.path("value").asText();
+                if ("environment".equals(key) || "release".equals(key) || 
+                    "transaction".equals(key) || "url".equals(key)) {
+                    environmentInfo.put(key, value);
+                }
+            }
+            if (!environmentInfo.isEmpty()) {
+                enhancedContext.put("environment", environmentInfo);
+            }
+        }
+        
+    } catch (Exception e) {
+        Sentry.captureException(e);
+        // Return what we have so far, don't fail completely
+    }
+    
+    return enhancedContext;
+}
+
+// Extract breadcrumbs from Sentry event data
+private List<Map<String, Object>> extractBreadcrumbs(JsonNode eventData) {
+    List<Map<String, Object>> breadcrumbs = new ArrayList<>();
+    
+    try {
+        if (eventData.has("entries") && eventData.path("entries").isArray()) {
+            for (JsonNode entry : eventData.path("entries")) {
+                if ("breadcrumbs".equals(entry.path("type").asText()) && 
+                    entry.has("data") && entry.path("data").has("values") &&
+                    entry.path("data").path("values").isArray()) {
+                    
+                    for (JsonNode crumb : entry.path("data").path("values")) {
+                        Map<String, Object> breadcrumb = new HashMap<>();
+                        
+                        if (crumb.has("timestamp") && !crumb.path("timestamp").isNull()) {
+                            breadcrumb.put("timestamp", crumb.path("timestamp").asText());
+                        }
+                        if (crumb.has("level") && !crumb.path("level").isNull()) {
+                            breadcrumb.put("level", crumb.path("level").asText());
+                        }
+                        if (crumb.has("message") && !crumb.path("message").isNull()) {
+                            breadcrumb.put("message", crumb.path("message").asText());
+                        }
+                        if (crumb.has("category") && !crumb.path("category").isNull()) {
+                            breadcrumb.put("category", crumb.path("category").asText());
+                        }
+                        if (crumb.has("type") && !crumb.path("type").isNull()) {
+                            breadcrumb.put("type", crumb.path("type").asText());
+                        }
+                        
+                        // Extract HTTP request data from breadcrumbs
+                        if (crumb.has("data") && !crumb.path("data").isEmpty()) {
+                            JsonNode data = crumb.path("data");
+                            Map<String, Object> crumbData = new HashMap<>();
+                            if (data.has("method")) crumbData.put("method", data.path("method").asText());
+                            if (data.has("url")) crumbData.put("url", data.path("url").asText());
+                            if (!crumbData.isEmpty()) {
+                                breadcrumb.put("data", crumbData);
+                            }
+                        }
+                        
+                        if (!breadcrumb.isEmpty()) {
+                            breadcrumbs.add(breadcrumb);
+                        }
+                    }
+                    break; // Found breadcrumbs entry, no need to continue
+                }
+            }
+        }
+    } catch (Exception e) {
+        Sentry.captureException(e);
+    }
+    
+    return breadcrumbs;
+}
+
+// Extract HTTP request details from Sentry event data
+private Map<String, Object> extractRequestDetails(JsonNode eventData) {
+    Map<String, Object> requestDetails = new HashMap<>();
+    
+    try {
+        if (eventData.has("entries") && eventData.path("entries").isArray()) {
+            for (JsonNode entry : eventData.path("entries")) {
+                if ("request".equals(entry.path("type").asText()) && 
+                    entry.has("data") && !entry.path("data").isEmpty()) {
+                    
+                    JsonNode data = entry.path("data");
+                    
+                    if (data.has("method") && !data.path("method").isNull()) {
+                        requestDetails.put("method", data.path("method").asText());
+                    }
+                    if (data.has("url") && !data.path("url").isNull()) {
+                        requestDetails.put("url", data.path("url").asText());
+                    }
+                    if (data.has("query") && data.path("query").isArray() && data.path("query").size() > 0) {
+                        requestDetails.put("query_params", data.path("query").toString());
+                    }
+                    if (data.has("headers") && data.path("headers").isArray()) {
+                        // Extract key headers
+                        Map<String, String> importantHeaders = new HashMap<>();
+                        for (JsonNode header : data.path("headers")) {
+                            if (header.isArray() && header.size() >= 2) {
+                                String headerName = header.get(0).asText().toLowerCase();
+                                String headerValue = header.get(1).asText();
+                                
+                                // Only include important headers
+                                if (headerName.equals("user-agent") || headerName.equals("content-type") ||
+                                    headerName.equals("accept") || headerName.equals("referer")) {
+                                    importantHeaders.put(headerName, headerValue);
+                                }
+                            }
+                        }
+                        if (!importantHeaders.isEmpty()) {
+                            requestDetails.put("headers", importantHeaders);
+                        }
+                    }
+                    break; // Found request entry, no need to continue
+                }
+            }
+        }
+    } catch (Exception e) {
+        Sentry.captureException(e);
+    }
+    
+    return requestDetails;
+}
+
+// Extract error metadata from Sentry event data
+private Map<String, Object> extractErrorMetadata(JsonNode eventData) {
+    Map<String, Object> errorMetadata = new HashMap<>();
+    
+    try {
+        // Extract from title and message
+        if (eventData.has("title") && !eventData.path("title").isNull()) {
+            errorMetadata.put("title", eventData.path("title").asText());
+        }
+        if (eventData.has("message") && !eventData.path("message").isNull() && 
+            !eventData.path("message").asText().isEmpty()) {
+            errorMetadata.put("message", eventData.path("message").asText());
+        }
+        if (eventData.has("culprit") && !eventData.path("culprit").isNull()) {
+            errorMetadata.put("culprit", eventData.path("culprit").asText());
+        }
+        
+        // Extract from exception entries
+        if (eventData.has("entries") && eventData.path("entries").isArray()) {
+            for (JsonNode entry : eventData.path("entries")) {
+                if ("exception".equals(entry.path("type").asText()) && 
+                    entry.has("data") && entry.path("data").has("values") &&
+                    entry.path("data").path("values").isArray() && 
+                    entry.path("data").path("values").size() > 0) {
+                    
+                    JsonNode exception = entry.path("data").path("values").get(0);
+                    
+                    if (exception.has("type") && !exception.path("type").isNull()) {
+                        errorMetadata.put("exception_type", exception.path("type").asText());
+                    }
+                    if (exception.has("value") && !exception.path("value").isNull()) {
+                        errorMetadata.put("exception_value", exception.path("value").asText());
+                    }
+                    if (exception.has("module") && !exception.path("module").isNull()) {
+                        errorMetadata.put("exception_module", exception.path("module").asText());
+                    }
+                    break; // Found exception entry, no need to continue
+                }
+            }
+        }
+        
+        // Extract metadata info
+        if (eventData.has("metadata") && !eventData.path("metadata").isEmpty()) {
+            JsonNode metadata = eventData.path("metadata");
+            if (metadata.has("filename") && !metadata.path("filename").isNull()) {
+                errorMetadata.put("filename", metadata.path("filename").asText());
+            }
+            if (metadata.has("function") && !metadata.path("function").isNull()) {
+                errorMetadata.put("function", metadata.path("function").asText());
+            }
+        }
+        
+    } catch (Exception e) {
+        Sentry.captureException(e);
+    }
+    
+    return errorMetadata;
+}
+
 }
