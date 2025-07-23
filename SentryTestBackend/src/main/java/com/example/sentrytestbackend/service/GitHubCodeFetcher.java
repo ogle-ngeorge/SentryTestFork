@@ -1,3 +1,4 @@
+
 package com.example.sentrytestbackend.service;
 
 import java.util.regex.Pattern;
@@ -11,8 +12,6 @@ import java.util.Base64;
 import org.springframework.beans.factory.annotation.Value;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
 
 /**
  * Service for fetching code snippets from GitHub using the GitHub API.
@@ -20,6 +19,11 @@ import java.util.regex.Matcher;
  */
 @Service
 public class GitHubCodeFetcher {
+    // Bitbucket code fetcher wrapper for compatibility with controller
+    public String getBitbucketCode(String stackTrace) {
+        // For now, just use the GitHub code fetcher logic
+        return getGithubCode(stackTrace);
+    }
     @Value("${github.api.token}")
     private String githubApiToken;
     private final RestTemplate restTemplate = new RestTemplate();
@@ -35,30 +39,23 @@ public class GitHubCodeFetcher {
     // GETTER METHODS //
     public String getGithubCode(String stackTrace){
         ArrayNode githubLinks = fetchGithubLinks(stackTrace);
-        System.out.println("Found " + githubLinks.size() + " GitHub links in stack trace");
         StringBuilder allCodeSnippets = new StringBuilder(); // Builds code into one large string
 
         for (int i = 0; i < githubLinks.size(); i++){
             JsonNode linkNode = githubLinks.get(i);
             String githubLink = linkNode.asText();
             try {
-                String codeSnippet = mapToGithubCode(githubLink, 10); // 10 lines of code context
-                if (!"Invalid Github link".equals(codeSnippet)) {
-                    allCodeSnippets.append("Snippet for: ").append(githubLink).append("\n").append(codeSnippet).append("\n\n");
-                }
+                String codeSnippet = mapToGithubCode(githubLink, 20); // 20 lines of code context
+                allCodeSnippets.append("Snippet for: ").append(githubLink).append("\n").append(codeSnippet).append("\n\n");
             } catch (org.springframework.web.client.HttpClientErrorException e) {
-                if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                    // Ignore links that are not found
-                    continue;
-                } else {
-                    throw e; // Rethrow other errors
-                }
-            } catch (Exception e) {
-                // Log other exceptions and continue
-                System.err.println("Error fetching GitHub code for " + githubLink + ": " + e.getMessage());
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                // Ignore links that are not found
                 continue;
+            } else {
+                throw e; // Rethrow other errors
             }
         }
+    }
     return allCodeSnippets.toString();
 }
 
@@ -92,11 +89,10 @@ public class GitHubCodeFetcher {
 
         // Sets up a pattern to know where to look for Github links
         Pattern pattern = Pattern.compile(
-            "https://github\\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+?)#L(\\d+)");
+            "github\\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+?)#L(\\d+)");
         Matcher matcher = pattern.matcher(githubLink);
 
         if (!matcher.find()){
-            System.err.println("Regex didn't match GitHub link: " + githubLink);
             return "Invalid Github link";
         }
         // Matches the values to group found in parenthesis in pattern
@@ -128,8 +124,6 @@ public class GitHubCodeFetcher {
         for (int i = start; i < end; i++){
             snippet.append((i + 1)).append(": ").append(lines[i]).append("\n");
         }
-        
-        System.out.println("Successfully fetched " + (end - start) + " lines of code from " + filePath + " around line " + lineNumber);
         return snippet.toString();
     }
 }

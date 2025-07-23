@@ -67,8 +67,16 @@ public class TestController {
     // http://localhost:8081/api/test-error
     @GetMapping("/test-error")
     public ResponseEntity<Map<String, String>> testError() {
-        // Intentionally cause an error for testing
-        throw new RuntimeException("This is a test error for Sentry!");
+        Map<String, String> error = new HashMap<>();
+        try {
+            // Intentionally cause an error for testing
+            throw new RuntimeException("This is a test error for Sentry!");
+        } catch (RuntimeException e) {
+            error.put("error", "Test error occurred!");
+            error.put("message", e.getMessage());
+            Sentry.captureException(e); // Optional: send to Sentry
+            return ResponseEntity.status(500).body(error);
+        }
     }
     
     // GET REQUEST TO SEND DIVIDE BY ZERO ERROR

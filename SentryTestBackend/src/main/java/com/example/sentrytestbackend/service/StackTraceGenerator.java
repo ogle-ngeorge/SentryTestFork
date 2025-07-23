@@ -12,9 +12,55 @@ public class StackTraceGenerator {
     private AIAnalysisService aiAnalysisService;
 
     // Variables to connect to github Repo
-    String githubRepo = "https://github.com/ogle-ngeorge/SentryTestFork";
+    String githubRepo = "https://github.com/DoubtfulCoder/SentryTest";
     String branch = "backend";
     String srcRoot = "SentryTestBackend/src/main/java/";
+
+    /**
+     * Builds a readable stack trace string from exception node, with Bitbucket links for each frame.
+     * If bitbucketCodeFetcher is null, just omits the Bitbucket link.
+     */
+    public String buildStackTraceStringWithBitbucketLinks(JsonNode exception, BitbucketCodeFetcher bitbucketCodeFetcher) {
+        String exceptionType = exception.has("type")
+                ? exception.path("type").asText()
+                : exception.path("name").asText("UnknownException");
+        String exceptionValue = exception.has("value")
+                ? exception.path("value").asText()
+                : "";
+        StringBuilder stackTrace = new StringBuilder();
+        stackTrace.append(exceptionType);
+        if (!exceptionValue.isEmpty()) {
+            stackTrace.append(": ").append(exceptionValue);
+        }
+        stackTrace.append("\n");
+        JsonNode frames = exception.path("stacktrace").path("frames");
+        if (frames.isArray()) {
+            for (int i = frames.size() - 1; i >= 0; i--) {
+                JsonNode frame = frames.get(i);
+                String module = frame.has("module") ? frame.path("module").asText("") : "";
+                String function = frame.has("function") ? frame.path("function").asText("") : "";
+                String filename = frame.has("filename") ? frame.path("filename").asText("") : "UnknownFile.java";
+                int lineno = frame.has("lineno") ? frame.path("lineno").asInt(-1) : (frame.has("lineNo") ? frame.path("lineNo").asInt(-1) : -1);
+
+                stackTrace.append("    at ");
+                if (!module.isEmpty()) {
+                    stackTrace.append(module).append(".");
+                }
+                stackTrace.append(function).append("(").append(filename);
+                if (lineno != -1) {
+                    stackTrace.append(":").append(lineno);
+                }
+                stackTrace.append(")");
+                // Always add Bitbucket link for this frame
+                String bitbucketUrl = (bitbucketCodeFetcher != null)
+                    ? bitbucketCodeFetcher.buildBitbucketLink(module, filename, lineno)
+                    : "https://bitbucket.org/unknown/repo/src/branch/" + filename + (lineno != -1 ? ("#lines-" + lineno) : "");
+                stackTrace.append(" [").append(bitbucketUrl).append("]");
+                stackTrace.append("\n");
+            }
+        }
+        return stackTrace.toString();
+    }
 
     // Using Sentry Data from AiAnalysisService
     // Returns the most recent stack trace

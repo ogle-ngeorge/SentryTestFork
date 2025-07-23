@@ -44,48 +44,55 @@ public class SentryDataGeminiController {
     private String organizationId;
 
     // GET REQUEST TO GEMINI & SENTRY TO GET SUGGESTION FOR 1 ERROR BASED ON ID
-    // Format: http://localhost:8081/api/gemini-suggest/project/{project}/errorId/{errorId}
-    // Example: http://localhost:8081/api/gemini-suggest/project/android/errorId/6748113930
+    // Format: http://localhost:8081/api/gemini-suggest/project/{project}/errorId/{errorId}?useBitbucket={true FOR BITBUCKET false FOR GITHUB}
+    // Example: http://localhost:8081/api/gemini-suggest/project/android/errorId/6744676878?useBitbucket=true
     @GetMapping("/project/{project}/errorId/{errorId}")
     public ResponseEntity<Map<String, String>> reviewErrorById(
         @PathVariable String project,
-        @PathVariable String errorId) {
+        @PathVariable String errorId,
+        @RequestParam(value = "useBitbucket", defaultValue = "false") boolean useBitbucket) {
 
         JsonNode errorData = sentryDataFetcher.fetchEventsByProject(
             organizationId, project, errorId);
-        
-        // Get properly formatted stack trace with GitHub links
-        List<String> eventIds = sentryDataFetcher.getEventIds(errorId);
-        if (eventIds.isEmpty()) {
-            throw new RuntimeException("No event IDs found for issue " + errorId);
-        }
-        JsonNode stackTraceJson = sentryDataFetcher.curlForStacktraceByEventId(errorId, eventIds.get(0));
-        JsonNode exceptionNode = stackTraceController.getExceptionNode(stackTraceJson);
-        String stackTrace = stackTraceController.buildStackTraceString(exceptionNode, true); // true = with GitHub links
-        
-        // Now fetch GitHub code using the formatted stack trace with links
-        String githubCode = githubCodeFetcher.getGithubCode(stackTrace);
-        
-        // Extract enhanced context (breadcrumbs, request details, error metadata)
-        Map<String, Object> enhancedContext = sentryDataFetcher.extractEnhancedContext(errorData);
+        String stackTrace = sentryDataFetcher.fetchStackTrace(organizationId, project, errorId);
 
-        // Use callGeminiForGithubCodeAnalysis to get suggestions
-        List<String> suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysisWithContext(
-            stackTrace,
-            errorData.toString(),
-            githubCode,
-            enhancedContext
-        );
+        List<String> suggestions;
+        if (useBitbucket) {
+            // Fetch code from Bitbucket and use the same analysis method
+            String bitbucketCode = githubCodeFetcher.getBitbucketCode(stackTrace);
+            suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysis(
+                stackTrace,
+                errorData.toString(),
+                bitbucketCode
+            );
+        } else {
+            // Default: use GitHub
+            String githubCode = githubCodeFetcher.getGithubCode(stackTrace);
+            suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysis(
+                stackTrace,
+                errorData.toString(),
+                githubCode
+            );
+        }
 
         Map<String, String> response = new LinkedHashMap<>();
         response.put("errorId", errorId);
-        response.put("suggestion", String.join("\n", suggestions));
+        // Format the suggestion for neatness
+        StringBuilder formatted = new StringBuilder();
+        formatted.append("\uD83E\uDD16 **Gemini AI Suggestions**\n\n");
+        for (String suggestion : suggestions) {
+            // Add spacing and markdown code block if not present
+            if (!suggestion.trim().isEmpty()) {
+                formatted.append(suggestion.trim()).append("\n\n");
+            }
+        }
+        response.put("suggestion", formatted.toString().trim());
         return ResponseEntity.ok(response);
     }
 
     // GET REQUEST TO GEMINI & SENTRY TO GET SUGGESTION MULTIPLE ERRORS BASED ON ID
     // Format: http://localhost:8081/api/gemini-suggest/batch/project/{project}/errors?ids={id1},{id2},{id3}
-    // http://localhost:8081/api/gemini-suggest/batch/project/android/errors?ids=6748881802,6744676873,6753431156
+    // http://localhost:8081/api/gemini-suggest/batch/project/android/errors?ids=6744676878,6745069181
     @GetMapping("/batch/project/{project}/errors")
     public ResponseEntity<List<Map<String, Object>>> reviewMultipleErrorsByID(
         @PathVariable String project,
@@ -99,28 +106,13 @@ public class SentryDataGeminiController {
 
         for (String errorId : ids) {
             JsonNode errorData = sentryDataFetcher.fetchEventsByProject(organizationId, project, errorId);
-            
-            // Get properly formatted stack trace with GitHub links for each error
-            List<String> eventIds = sentryDataFetcher.getEventIds(errorId);
-            if (eventIds.isEmpty()) {
-                // Skip this error if no event IDs found
-                continue;
-            }
-            JsonNode stackTraceJson = sentryDataFetcher.curlForStacktraceByEventId(errorId, eventIds.get(0));
-            JsonNode exceptionNode = stackTraceController.getExceptionNode(stackTraceJson);
-            String stackTrace = stackTraceController.buildStackTraceString(exceptionNode, true); // true = with GitHub links
-            
-            // Now fetch GitHub code using the formatted stack trace with links
+            String stackTrace = sentryDataFetcher.fetchStackTrace(organizationId, project, errorId);
             String githubCode = githubCodeFetcher.getGithubCode(stackTrace);
-            
-            // Extract enhanced context for each error
-            Map<String, Object> enhancedContext = sentryDataFetcher.extractEnhancedContext(errorData);
 
-            List<String> suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysisWithContext(
+            List<String> suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysis(
                 stackTrace,
                 errorData.toString(),
-                githubCode,
-                enhancedContext
+                githubCode
             );
 
             Map<String, Object> result = new LinkedHashMap<>();
