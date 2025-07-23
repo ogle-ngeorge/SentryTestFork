@@ -39,23 +39,30 @@ public class GitHubCodeFetcher {
     // GETTER METHODS //
     public String getGithubCode(String stackTrace){
         ArrayNode githubLinks = fetchGithubLinks(stackTrace);
+        System.out.println("Found " + githubLinks.size() + " GitHub links in stack trace");
         StringBuilder allCodeSnippets = new StringBuilder(); // Builds code into one large string
 
         for (int i = 0; i < githubLinks.size(); i++){
             JsonNode linkNode = githubLinks.get(i);
             String githubLink = linkNode.asText();
             try {
-                String codeSnippet = mapToGithubCode(githubLink, 20); // 20 lines of code context
-                allCodeSnippets.append("Snippet for: ").append(githubLink).append("\n").append(codeSnippet).append("\n\n");
+                String codeSnippet = mapToGithubCode(githubLink, 10); // 10 lines of code context
+                if (!"Invalid Github link".equals(codeSnippet)) {
+                    allCodeSnippets.append("Snippet for: ").append(githubLink).append("\n").append(codeSnippet).append("\n\n");
+                }
             } catch (org.springframework.web.client.HttpClientErrorException e) {
-            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                // Ignore links that are not found
+                if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                    // Ignore links that are not found
+                    continue;
+                } else {
+                    throw e; // Rethrow other errors
+                }
+            } catch (Exception e) {
+                // Log other exceptions and continue
+                System.err.println("Error fetching GitHub code for " + githubLink + ": " + e.getMessage());
                 continue;
-            } else {
-                throw e; // Rethrow other errors
             }
         }
-    }
     return allCodeSnippets.toString();
 }
 
@@ -89,10 +96,11 @@ public class GitHubCodeFetcher {
 
         // Sets up a pattern to know where to look for Github links
         Pattern pattern = Pattern.compile(
-            "github\\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+?)#L(\\d+)");
+            "https://github\\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+?)#L(\\d+)");
         Matcher matcher = pattern.matcher(githubLink);
 
         if (!matcher.find()){
+            System.err.println("Regex didn't match GitHub link: " + githubLink);
             return "Invalid Github link";
         }
         // Matches the values to group found in parenthesis in pattern
@@ -124,6 +132,8 @@ public class GitHubCodeFetcher {
         for (int i = start; i < end; i++){
             snippet.append((i + 1)).append(": ").append(lines[i]).append("\n");
         }
+        
+        System.out.println("Successfully fetched " + (end - start) + " lines of code from " + filePath + " around line " + lineNumber);
         return snippet.toString();
     }
 }
