@@ -1,0 +1,31 @@
+# Server Configuration
+server.port=8081
+
+# Sentry Configuration - Replace with your actual DSN
+sentry.dsn=YOUR_SENTRY_DSN_HERE
+sentry.environment=development
+sentry.release=1.0.0
+sentry.traces-sample-rate=1.0 
+sentry.debug=true
+sentry.enable-spotlight=true
+sentry.spotlight-url=http://localhost:8969
+
+# Application Configuration
+spring.application.name=SentryTestBackend
+
+# Github - Replace with your personal access token
+github.api.token=YOUR_GITHUB_TOKEN_HERE
+
+# Logging
+logging.level.com.example.sentrytestbackend=DEBUG
+logging.level.io.sentry=DEBUG
+
+# Sentry API Configuration - Replace with your values
+sentry.api.url=YOUR_SENTRY_ORG_URL
+sentry.api.token=YOUR_SENTRY_API_TOKEN
+sentry.organization.id=YOUR_SENTRY_ORG_ID
+
+# Gemini AI Configuration - Replace with your API key
+gemini.api.key=YOUR_GEMINI_API_KEY
+gemini.api.model=gemini-1.5-flash
+gemini.api.base-url=https://generativelanguage.googleapis.com/v1beta/models 
