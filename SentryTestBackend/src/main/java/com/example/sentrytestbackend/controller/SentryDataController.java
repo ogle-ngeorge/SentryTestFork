@@ -25,10 +25,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @RestController
 @RequestMapping("/api/sentry-errors")
 public class SentryDataController {
+    @Value("${code.host}")
+    private String codeHost;
     
     // ...existing code...
     @Autowired
     private com.example.sentrytestbackend.service.BitbucketCodeFetcher bitbucketCodeFetcher;
+
+    @Autowired
+    private com.example.sentrytestbackend.service.GitHubCodeFetcher githubCodeFetcher;
 
     @Autowired
     private SentryDataFetcher sentryDataFetcher;
@@ -107,7 +112,7 @@ public class SentryDataController {
 
     // GET REQUEST TO GET ERROR MESSAGE + STACK TRACE BY PROJECT NAME & EVENT ID WITH OCCURRENCE COUNT
     // Format: http://localhost:8081/api/sentry-errors/project/{projectSlug}/errorId/{errorId}
-    // http://localhost:8081/api/sentry-errors/project/android/errorId/6748278147
+    // http://localhost:8081/api/sentry-errors/project/android/errorId/6745069174
     @GetMapping("/project/{project}/errorId/{errorId}")
     public ResponseEntity<Map<String, Object>> fetchErrorByProjectAndId(
         @PathVariable String project,
@@ -125,33 +130,50 @@ public class SentryDataController {
             // Extract the exception node
             JsonNode exceptionNode = stackTraceGenerator.getExceptionNode(eventJson);
 
-            // Build the stack trace string (with Bitbucket links)
-            String stackTrace = stackTraceGenerator.buildStackTraceStringWithBitbucketLinks(exceptionNode, bitbucketCodeFetcher);
-            System.out.println("[DEBUG] Stack trace with Bitbucket links:\n" + stackTrace);
-
-            // Fetch Bitbucket code snippet(s) from stack trace, handle 404 gracefully
-            String bitbucketCodeOnly;
-            try {
-                String raw = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 3, errorData.path("lastSeen").asText());
-                // Split by snippet separator and filter for project files only
-                StringBuilder filtered = new StringBuilder();
-                String[] snippets = raw.split("\\n\\nSnippet for:");
-                for (String snippet : snippets) {
-                    // Ensure the separator is restored for all but the first
-                    String fullSnippet = snippet;
-                    if (!snippet.startsWith("Snippet for:")) {
-                        fullSnippet = "Snippet for:" + snippet;
+            String stackTrace;
+            String codeSnippet = "";
+            if ("bitbucket".equalsIgnoreCase(codeHost)) {
+                stackTrace = stackTraceGenerator.buildStackTraceStringWithBitbucketLinks(exceptionNode, bitbucketCodeFetcher);
+                System.out.println("[DEBUG] Stack trace with Bitbucket links:\n" + stackTrace);
+                try {
+                    String raw = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 3, errorData.path("lastSeen").asText());
+                    StringBuilder filtered = new StringBuilder();
+                    String[] snippets = raw.split("\\n\\nSnippet for:");
+                    for (String snippet : snippets) {
+                        String fullSnippet = snippet;
+                        if (!snippet.startsWith("Snippet for:")) {
+                            fullSnippet = "Snippet for:" + snippet;
+                        }
+                        if (fullSnippet.contains("com/example/sentrytestbackend")) {
+                            filtered.append(fullSnippet.trim()).append("\n\n");
+                        }
                     }
-                    // Check if this snippet is for a project file
-                    if (fullSnippet.contains("com/example/sentrytestbackend")) {
-                        filtered.append(fullSnippet.trim()).append("\n\n");
-                    }
+                    codeSnippet = filtered.length() > 0 ? filtered.toString().trim() : "No project code snippets found.";
+                } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+                    codeSnippet = "Bitbucket file not found for one or more frames.";
+                } catch (Exception e) {
+                    codeSnippet = "Error fetching Bitbucket code: " + e.getMessage();
                 }
-                bitbucketCodeOnly = filtered.length() > 0 ? filtered.toString().trim() : "No project code snippets found.";
-            } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
-                bitbucketCodeOnly = "Bitbucket file not found for one or more frames.";
-            } catch (Exception e) {
-                bitbucketCodeOnly = "Error fetching Bitbucket code: " + e.getMessage();
+            } else {
+                stackTrace = stackTraceGenerator.buildStackTraceString(exceptionNode, true); // true = with GitHub links
+                System.out.println("[DEBUG] Stack trace with GitHub links:\n" + stackTrace);
+                try {
+                    String raw = githubCodeFetcher.getGithubCode(stackTrace);
+                    StringBuilder filtered = new StringBuilder();
+                    String[] snippets = raw.split("\\n\\nSnippet for:");
+                    for (String snippet : snippets) {
+                        String fullSnippet = snippet;
+                        if (!snippet.startsWith("Snippet for:")) {
+                            fullSnippet = "Snippet for:" + snippet;
+                        }
+                        if (fullSnippet.contains("sentrytestbackend")) {
+                            filtered.append(fullSnippet.trim()).append("\n\n");
+                        }
+                    }
+                    codeSnippet = filtered.length() > 0 ? filtered.toString().trim() : "No project code snippets found.";
+                } catch (Exception e) {
+                    codeSnippet = "Error fetching GitHub code: " + e.getMessage();
+                }
             }
 
             Map<String, Object> info = new LinkedHashMap<>();
@@ -160,8 +182,8 @@ public class SentryDataController {
             info.put("timestamp", errorData.path("lastSeen").asText());
             info.put("projectId", errorData.path("project").path("id").asText());
             info.put("count", errorData.path("count").asInt());
-            info.put("stackTrace", stackTrace); // Section 1: stacktrace with Bitbucket links
-            info.put("bitbucketCode", bitbucketCodeOnly); // Section 2: only the code snippet from Bitbucket
+            info.put("stackTrace", stackTrace);
+            info.put("codeSnippet", codeSnippet);
 
             return ResponseEntity.ok(info);
         } catch (Exception e) {

@@ -19,11 +19,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
  */
 @Service
 public class GitHubCodeFetcher {
-    // Bitbucket code fetcher wrapper for compatibility with controller
-    public String getBitbucketCode(String stackTrace) {
-        // For now, just use the GitHub code fetcher logic
-        return getGithubCode(stackTrace);
-    }
+    
     @Value("${github.api.token}")
     private String githubApiToken;
     private final RestTemplate restTemplate = new RestTemplate();

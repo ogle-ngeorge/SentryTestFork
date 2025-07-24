@@ -27,6 +27,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RestController
 @RequestMapping("/api/gemini-suggest") // Base Annotation for base URL paths (EX ~ )
 public class SentryDataGeminiController {
+    @Value("${code.host}")
+    private String codeHost;
+
+    @Autowired
+    private com.example.sentrytestbackend.service.BitbucketCodeFetcher bitbucketCodeFetcher;
 
     @Autowired
     private AIAnalysisService aiAnalysisService;
@@ -52,41 +57,65 @@ public class SentryDataGeminiController {
         @PathVariable String errorId,
         @RequestParam(value = "useBitbucket", defaultValue = "false") boolean useBitbucket) {
 
-        JsonNode errorData = sentryDataFetcher.fetchEventsByProject(
-            organizationId, project, errorId);
-        
-        // Get properly formatted stack trace with GitHub links
+        long startTotal = System.currentTimeMillis();
+
+        long startFetchError = System.currentTimeMillis();
+        JsonNode errorData = sentryDataFetcher.fetchEventsByProject(organizationId, project, errorId);
+        long endFetchError = System.currentTimeMillis();
+
+        long startEventIds = System.currentTimeMillis();
         List<String> eventIds = sentryDataFetcher.getEventIds(errorId);
+        long endEventIds = System.currentTimeMillis();
+
         if (eventIds.isEmpty()) {
             throw new RuntimeException("No event IDs found for issue " + errorId);
         }
+
+        long startStackTraceJson = System.currentTimeMillis();
         JsonNode stackTraceJson = sentryDataFetcher.curlForStacktraceByEventId(errorId, eventIds.get(0));
+        long endStackTraceJson = System.currentTimeMillis();
+
+        long startExceptionNode = System.currentTimeMillis();
         JsonNode exceptionNode = stackTraceController.getExceptionNode(stackTraceJson);
-        String stackTrace = stackTraceController.buildStackTraceString(exceptionNode, true); // true = with GitHub links
-        
-        // Extract enhanced context (breadcrumbs, request details, error metadata)
+        long endExceptionNode = System.currentTimeMillis();
+
+        long startStackTrace = System.currentTimeMillis();
+        String stackTrace;
+        String code;
+        if ("bitbucket".equalsIgnoreCase(codeHost)) {
+            stackTrace = stackTraceController.buildStackTraceStringWithBitbucketLinks(exceptionNode, bitbucketCodeFetcher);
+            code = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 10, errorData.path("lastSeen").asText());
+        } else {
+            stackTrace = stackTraceController.buildStackTraceString(exceptionNode, true); // true = with GitHub links
+            code = githubCodeFetcher.getGithubCode(stackTrace);
+        }
+        long endStackTrace = System.currentTimeMillis();
+
+        long startContext = System.currentTimeMillis();
         Map<String, Object> enhancedContext = sentryDataFetcher.extractEnhancedContext(errorData);
+        long endContext = System.currentTimeMillis();
 
         List<String> suggestions;
-        if (useBitbucket) {
-            // Fetch code from Bitbucket and use the same analysis method
-            String bitbucketCode = githubCodeFetcher.getBitbucketCode(stackTrace);
-            suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysisWithContext(
-                stackTrace,
-                errorData.toString(),
-                bitbucketCode,
-                enhancedContext
-            );
-        } else {
-            // Default: use GitHub
-            String githubCode = githubCodeFetcher.getGithubCode(stackTrace);
-            suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysisWithContext(
-                stackTrace,
-                errorData.toString(),
-                githubCode,
-                enhancedContext
-            );
-        }
+        long startGemini = System.currentTimeMillis();
+        suggestions = aiAnalysisService.callGeminiForGithubCodeAnalysisWithContext(
+            stackTrace,
+            errorData.toString(),
+            code,
+            enhancedContext
+        );
+        long endGemini = System.currentTimeMillis();
+
+        long endTotal = System.currentTimeMillis();
+
+        System.out.println("==== Gemini Suggest Endpoint Timing Breakdown ====");
+        System.out.printf("Fetch Error Data: %d ms\n", endFetchError - startFetchError);
+        System.out.printf("Fetch Event IDs: %d ms\n", endEventIds - startEventIds);
+        System.out.printf("Fetch StackTrace JSON: %d ms\n", endStackTraceJson - startStackTraceJson);
+        System.out.printf("Extract Exception Node: %d ms\n", endExceptionNode - startExceptionNode);
+        System.out.printf("Build Stack Trace String: %d ms\n", endStackTrace - startStackTrace);
+        System.out.printf("Extract Enhanced Context: %d ms\n", endContext - startContext);
+        System.out.printf("Gemini AI Call: %d ms\n", endGemini - startGemini);
+        System.out.printf("TOTAL: %d ms\n", endTotal - startTotal);
 
         Map<String, String> response = new LinkedHashMap<>();
         response.put("errorId", errorId);
