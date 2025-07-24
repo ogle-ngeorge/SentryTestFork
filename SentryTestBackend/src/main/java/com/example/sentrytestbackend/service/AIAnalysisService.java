@@ -27,9 +27,15 @@ public class AIAnalysisService {
     @Autowired
     private GitHubCodeFetcher githubCodeFetcher;
 
-    // Gemini API Configuration
-    private static final String GEMINI_API_KEY = "AIzaSyC7IAPYcawnLgDooqNbNmq9J-CWodNF_Kk";
-    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY;
+    // Gemini API Configuration - now configurable via application.properties
+    @Value("${gemini.api.key}")
+    private String geminiApiKey;
+    
+    @Value("${gemini.api.model}")
+    private String geminiApiModel;
+    
+    @Value("${gemini.api.base-url}")
+    private String geminiBaseUrl;
     
     // Sentry API Configuration (for data fetching)
     @Value("${sentry.api.url:https://noah-3t.sentry.io}")
@@ -343,6 +349,9 @@ public class AIAnalysisService {
     // Call Gemini API
     private String callGeminiAPI(String prompt) {
         try {
+            // Construct Gemini API URL dynamically
+            String geminiApiUrl = String.format("%s/%s:generateContent?key=%s", 
+                geminiBaseUrl, geminiApiModel, geminiApiKey);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             
@@ -357,7 +366,7 @@ public class AIAnalysisService {
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
             ResponseEntity<String> response = restTemplate.exchange(
-                GEMINI_API_URL, HttpMethod.POST, entity, String.class);
+                geminiApiUrl, HttpMethod.POST, entity, String.class);
             
             return response.getBody();
             

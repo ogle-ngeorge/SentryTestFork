@@ -3,6 +3,7 @@ package com.example.sentrytestbackend.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -11,10 +12,15 @@ public class StackTraceGenerator {
     @Autowired
     private AIAnalysisService aiAnalysisService;
 
-    // Variables to connect to github Repo
-    String githubRepo = "https://github.com/ogle-ngeorge/SentryTestFork";
-    String branch = "backend";
-    String srcRoot = "SentryTestBackend/src/main/java/";
+    // Variables to connect to github Repo - configurable via application.properties
+    @Value("${github.repo.url}")
+    private String githubRepo;
+    
+    @Value("${github.repo.branch}")
+    private String branch;
+    
+    @Value("${github.repo.source-root}")
+    private String srcRoot;
 
     /**
      * Builds a readable stack trace string from exception node, with Bitbucket links for each frame.
