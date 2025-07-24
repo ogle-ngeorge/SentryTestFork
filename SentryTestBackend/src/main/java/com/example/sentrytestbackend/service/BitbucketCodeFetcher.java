@@ -138,17 +138,14 @@ public class BitbucketCodeFetcher {
      * @return Combined code snippets for all Bitbucket links in the stack trace
      */
     public String getBitbucketCodeFromStackTrace(String stackTrace, int context, String errorTimestamp) {
-        StringBuilder allSnippets = new StringBuilder();
         Pattern linkPattern = Pattern.compile("https://bitbucket.org/[^\\s\\]]+#lines-\\d+");
         Matcher matcher = linkPattern.matcher(stackTrace);
+        StringBuilder allSnippets = new StringBuilder();
         while (matcher.find()) {
             String bitbucketLink = matcher.group();
-            // Only fetch code for files in your project root
-            if (bitbucketLink.contains("SentryTestBackend/")) {
-                String snippet = mapToBitbucketCode(bitbucketLink, context, errorTimestamp);
-                allSnippets.append("Snippet for: ").append(bitbucketLink).append("\n");
-                allSnippets.append(snippet).append("\n\n");
-            }
+            String snippet = mapToBitbucketCode(bitbucketLink, context, errorTimestamp);
+            allSnippets.append("Snippet for: ").append(bitbucketLink).append("\n");
+            allSnippets.append(snippet).append("\n\n");
         }
         if (allSnippets.length() == 0) {
             return "No Bitbucket links found in stack trace.";
