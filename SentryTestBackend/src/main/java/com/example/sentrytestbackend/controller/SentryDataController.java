@@ -85,30 +85,41 @@ public class SentryDataController {
         @PathVariable String project) {
         // Fetch all issues for the project
         String issuesJson = sentryDataFetcher.curlForSentryErrorDataByProject(organizationId, project);
-        Map<String, String> dataMap = new HashMap<>();
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode issues = mapper.readTree(issuesJson);
+            // Map to keep only the most recent issue for each title
+            Map<String, IssueWithDate> mostRecentByTitle = new HashMap<>();
+
             for (JsonNode issue : issues) {
                 String issueId = issue.path("id").asText();
-                // Get the most recent eventId for this issue
                 List<String> eventIds = sentryDataFetcher.getEventIds(issueId);
                 String title = issue.path("title").asText();
+                String lastSeen = issue.path("lastSeen").asText("");
                 if (!eventIds.isEmpty()) {
-                    // Fetch the most recent event JSON and use its title if available
                     JsonNode eventJson = sentryDataFetcher.curlForStacktraceByEventId(issueId, eventIds.get(0));
                     if (eventJson.has("title")) {
                         title = eventJson.path("title").asText();
                     }
+                    if (eventJson.has("dateCreated")) {
+                        lastSeen = eventJson.path("dateCreated").asText();
+                    }
                 }
-                dataMap.put(issueId, title);
+                IssueWithDate prev = mostRecentByTitle.get(title);
+                if (prev == null || lastSeen.compareTo(prev.lastSeen) > 0) {
+                    mostRecentByTitle.put(title, new IssueWithDate(issueId, lastSeen));
+                }
+            }
+
+            Map<String, String> dataMap = new HashMap<>();
+            for (Map.Entry<String, IssueWithDate> entry : mostRecentByTitle.entrySet()) {
+                dataMap.put(entry.getValue().issueId, entry.getKey());
             }
             return ResponseEntity.ok(dataMap);
         } catch (Exception e) {
             return ResponseEntity.status(500).build();
         }
     }
-    
 
     // GET REQUEST TO GET ERROR MESSAGE + STACK TRACE BY PROJECT NAME & EVENT ID WITH OCCURRENCE COUNT
     // Format: http://localhost:8081/api/sentry-errors/project/{projectSlug}/errorId/{errorId}
@@ -312,11 +323,16 @@ public class SentryDataController {
     }
 
 
-
-
-
-
-
+    // Helper class for deduplication by title and date
+    // Used by MapIdsWithErrorName to filter duplicate old errors.
+    private static class IssueWithDate {
+        public final String issueId;
+        public final String lastSeen;
+        public IssueWithDate(String issueId, String lastSeen) {
+            this.issueId = issueId;
+            this.lastSeen = lastSeen;
+        }
+    }
 
     // GET REQUEST TO GET GROUPED ERROR MESSAGES FOR ALL ERRORS IN PROJECT
     // Format: http://localhost:8081/api/sentry-errors/project/{project}/errors
