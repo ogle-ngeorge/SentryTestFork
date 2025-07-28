@@ -70,7 +70,7 @@ public class TestController {
         Map<String, String> error = new HashMap<>();
         try {
             // Intentionally cause an error for testing
-            throw new RuntimeException("Error Error, Testing Testing!");
+            throw new RuntimeException("This is a test error for Sentry!");
         } catch (RuntimeException e) {
             error.put("error", "Test error occurred!");
             error.put("message", e.getMessage());
@@ -85,7 +85,7 @@ public class TestController {
     public ResponseEntity<?> testDivideByZero() {
         try {
             int x = 0;
-            int result = 100 / x;
+            int result = 500 / x;
             return ResponseEntity.ok(result);
         } catch (ArithmeticException e) {
             Map<String, String> error = new HashMap<>();
