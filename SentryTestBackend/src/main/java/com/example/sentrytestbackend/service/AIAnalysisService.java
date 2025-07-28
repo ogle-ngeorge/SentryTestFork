@@ -13,6 +13,10 @@ import io.sentry.Sentry;
 import java.util.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.io.File;
+import java.io.FileWriter;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Service
 public class AIAnalysisService {
@@ -23,9 +27,15 @@ public class AIAnalysisService {
     @Autowired
     private GitHubCodeFetcher githubCodeFetcher;
 
-    // Gemini API Configuration
-    private static final String GEMINI_API_KEY = "AIzaSyC7IAPYcawnLgDooqNbNmq9J-CWodNF_Kk";
-    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY;
+    // Gemini API Configuration - now configurable via application.properties
+    @Value("${gemini.api.key}")
+    private String geminiApiKey;
+    
+    @Value("${gemini.api.model}")
+    private String geminiApiModel;
+    
+    @Value("${gemini.api.base-url}")
+    private String geminiBaseUrl;
     
     // Sentry API Configuration (for data fetching)
     @Value("${sentry.api.url:https://noah-3t.sentry.io}")
@@ -136,6 +146,22 @@ public class AIAnalysisService {
         }
     }
 
+    // Call Gemini API for code analysis with enhanced context (breadcrumbs, request details, error metadata)
+    public List<String> callGeminiForGithubCodeAnalysisWithContext(String stackTraceData, String sentryError, String githubCode, Map<String, Object> enhancedContext){
+        try{
+            String prompt = createEnhancedCodeAnalysisPrompt(stackTraceData, sentryError, githubCode, enhancedContext);
+            
+            // Log the full prompt to JSON file for debugging
+            logPromptToFile(prompt, stackTraceData, sentryError, githubCode, enhancedContext);
+            
+            String geminiResponse = callGeminiAPI(prompt);
+            return parseSuggestionsResponse(geminiResponse);
+        } catch (Exception e){
+            Sentry.captureException(e);
+            return Arrays.asList("Gemini AI Code Review failed: " + e.getMessage());
+        }
+    }
+
     // Call Gemini API for suggestions
     private List<String> callGeminiForSuggestions(String errorData) {
         try {
@@ -183,10 +209,104 @@ public class AIAnalysisService {
         " and try to figure out where the error is coming from and what line." +
         " Refer to the GitHub links in the stack trace for the exact code location." +
         " Refer to the Stack Trace, Errors, and Code from Github for context. " +
-        " Please post the code snippet and be brief. \n\n" +
+        " Please post the code snippet. \n\n" +
         " Stack Trace:\n" + stackTraceData + "\n\n" +
         " Sentry Error: \n" + sentryError + "\n\n" +
         " Code from github: \n" + githubCode + "\n\n";
+    }
+
+    // Create enhanced code analysis prompt with context (breadcrumbs, request details, error metadata)
+    private String createEnhancedCodeAnalysisPrompt(String stackTraceData, String sentryError, String githubCode, Map<String, Object> enhancedContext) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("You are an expert software engineer analyzing stack trace data and error data from Sentry. Please analyze the following " +
+        "and try to figure out where the error is coming from and what line. " +
+        "Refer to the GitHub links in the stack trace for the exact code location. " +
+        "Use the execution context (breadcrumbs, request details, error metadata) to understand the full picture. " +
+        "Please be specific and actionable in your analysis.\n\n");
+        
+        prompt.append("Stack Trace:\n").append(stackTraceData).append("\n\n");
+        prompt.append("Sentry Error Data:\n").append(sentryError).append("\n\n");
+        prompt.append("GitHub Code:\n").append(githubCode).append("\n\n");
+
+        // Add enhanced context if available
+        if (enhancedContext != null && !enhancedContext.isEmpty()) {
+            prompt.append("=== EXECUTION CONTEXT ===\n\n");
+            
+            // Add breadcrumbs
+            if (enhancedContext.containsKey("breadcrumbs")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> breadcrumbs = (List<Map<String, Object>>) enhancedContext.get("breadcrumbs");
+                prompt.append("Breadcrumbs (execution trail leading to error):\n");
+                for (Map<String, Object> breadcrumb : breadcrumbs) {
+                    prompt.append("- ");
+                    if (breadcrumb.containsKey("timestamp")) prompt.append(breadcrumb.get("timestamp")).append(" ");
+                    if (breadcrumb.containsKey("level")) prompt.append("[").append(breadcrumb.get("level")).append("] ");
+                    if (breadcrumb.containsKey("category")) prompt.append("(").append(breadcrumb.get("category")).append(") ");
+                    if (breadcrumb.containsKey("message")) prompt.append(breadcrumb.get("message"));
+                    if (breadcrumb.containsKey("data")) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> data = (Map<String, Object>) breadcrumb.get("data");
+                        if (data.containsKey("method") && data.containsKey("url")) {
+                            prompt.append(" - ").append(data.get("method")).append(" ").append(data.get("url"));
+                        }
+                    }
+                    prompt.append("\n");
+                }
+                prompt.append("\n");
+            }
+            
+            // Add request details
+            if (enhancedContext.containsKey("request")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> request = (Map<String, Object>) enhancedContext.get("request");
+                prompt.append("HTTP Request Details:\n");
+                for (Map.Entry<String, Object> entry : request.entrySet()) {
+                    prompt.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+                }
+                prompt.append("\n");
+            }
+            
+            // Add error metadata
+            if (enhancedContext.containsKey("error")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> error = (Map<String, Object>) enhancedContext.get("error");
+                prompt.append("Error Metadata:\n");
+                for (Map.Entry<String, Object> entry : error.entrySet()) {
+                    prompt.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+                }
+                prompt.append("\n");
+            }
+            
+            // Add user context
+            if (enhancedContext.containsKey("user")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> user = (Map<String, Object>) enhancedContext.get("user");
+                prompt.append("User Context:\n");
+                for (Map.Entry<String, Object> entry : user.entrySet()) {
+                    prompt.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+                }
+                prompt.append("\n");
+            }
+            
+            // Add environment context
+            if (enhancedContext.containsKey("environment")) {
+                @SuppressWarnings("unchecked")
+                Map<String, String> environment = (Map<String, String>) enhancedContext.get("environment");
+                prompt.append("Environment:\n");
+                for (Map.Entry<String, String> entry : environment.entrySet()) {
+                    prompt.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+                }
+                prompt.append("\n");
+            }
+        }
+
+        prompt.append("Please provide:\n" +
+                     "1. Root cause analysis based on the execution flow\n" +
+                     "2. Specific code location and line causing the issue\n" +
+                     "3. Immediate fix recommendations\n" +
+                     "4. Prevention strategies for similar errors");
+
+        return prompt.toString();
     }
 
 
@@ -229,6 +349,9 @@ public class AIAnalysisService {
     // Call Gemini API
     private String callGeminiAPI(String prompt) {
         try {
+            // Construct Gemini API URL dynamically
+            String geminiApiUrl = String.format("%s/%s:generateContent?key=%s", 
+                geminiBaseUrl, geminiApiModel, geminiApiKey);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             
@@ -243,7 +366,7 @@ public class AIAnalysisService {
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
             ResponseEntity<String> response = restTemplate.exchange(
-                GEMINI_API_URL, HttpMethod.POST, entity, String.class);
+                geminiApiUrl, HttpMethod.POST, entity, String.class);
             
             return response.getBody();
             
@@ -506,5 +629,30 @@ public class AIAnalysisService {
         }
         
         return "UnknownError";
+    }
+
+    // Helper method to log the full prompt and context to a JSON file
+    private void logPromptToFile(String prompt, String stackTraceData, String sentryError, String githubCode, Map<String, Object> enhancedContext) {
+        try {
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+            String fileName = "gemini_prompt_log_" + timestamp + ".json";
+            File file = new File(fileName);
+            FileWriter writer = new FileWriter(file);
+
+            Map<String, Object> logData = new HashMap<>();
+            logData.put("timestamp", timestamp);
+            logData.put("prompt", prompt);
+            logData.put("stackTraceData", stackTraceData);
+            logData.put("sentryError", sentryError);
+            logData.put("githubCode", githubCode);
+            logData.put("enhancedContext", enhancedContext);
+
+            writer.write(new ObjectMapper().writeValueAsString(logData));
+            writer.close();
+            System.out.println("Prompt and context logged to " + fileName);
+        } catch (Exception e) {
+            Sentry.captureException(e);
+            System.err.println("Failed to log prompt to file: " + e.getMessage());
+        }
     }
 }

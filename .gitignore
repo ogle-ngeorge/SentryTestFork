@@ -15,13 +15,75 @@
 local.properties
 apikeys.properties
 
-
 # Sentry Config File
 sentry.properties
 
 # Sentry backend
 SentryTestBackend/.gradle
 
-[application.properties](http://_vscodecontentref_/3)
+# Java/Spring Boot Build Artifacts
+**/build/
+**/target/
+**/*.class
+**/*.jar
+**/*.war
+**/*.ear
+**/*.nar
 
-SentryTestBackend/src/main/resources/application.properties
+# Spring Boot specific
+**/build/classes/
+**/build/resources/
+**/build/libs/
+**/build/tmp/
+**/build/generated/
+**/bin/
+
+# Configuration files with sensitive data
+**/application.properties
+**/application-*.properties
+**/application.yml
+**/application-*.yml
+
+# Log files
+**/*.log
+**/logs/
+**/gemini_prompt_log_*.json
+sample_response.json
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Package files
+*.tar.gz
+*.zip
+*.rar
