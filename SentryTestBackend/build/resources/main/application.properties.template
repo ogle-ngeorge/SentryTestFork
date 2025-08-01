@@ -1,0 +1,58 @@
+# Server Configuration
+server.port=8081
+
+# Sentry Configuration - Replace with your actual DSN
+sentry.dsn=YOUR_SENTRY_DSN_HERE
+sentry.environment=development
+sentry.release=1.0.0
+sentry.traces-sample-rate=1.0 
+sentry.debug=true
+sentry.enable-spotlight=true
+sentry.spotlight-url=http://localhost:8969
+
+# Application Configuration
+spring.application.name=SentryTestBackend
+
+# Stack Trace Configuration
+stacktrace.project.root=com.example.sentrytestbackend
+
+# Github - Replace with your personal access token
+github.api.token=YOUR_GITHUB_TOKEN_HERE
+
+# GitHub Repository Configuration
+github.repo.url=https://github.com/ogle-ngeorge/SentryTestFork
+github.repo.branch=backend
+github.repo.source-root=SentryTestBackend/src/main/java
+
+# Logging
+logging.level.com.example.sentrytestbackend=DEBUG
+logging.level.io.sentry=DEBUG
+
+# Sentry API Configuration - Replace with your values
+sentry.api.url=YOUR_SENTRY_ORG_URL
+sentry.api.token=YOUR_SENTRY_API_TOKEN
+sentry.auth-token=YOUR_SENTRY_AUTH_TOKEN
+sentry.organization.id=YOUR_SENTRY_ORG_ID
+sentry.default.project=YOUR_DEFAULT_PROJECT_NAME
+
+# Gemini AI Configuration - Replace with your API key
+gemini.api.key=YOUR_GEMINI_API_KEY
+gemini.api.model=gemini-1.5-flash
+gemini.api.base-url=https://generativelanguage.googleapis.com/v1beta/models 
+
+# Code Host Configuration (bitbucket or github)
+code.host=bitbucket
+
+# Bitbucket Configuration - Replace with your values
+bitbucket.workspace=YOUR_BITBUCKET_WORKSPACE
+bitbucket.repo.name=YOUR_BITBUCKET_REPO_NAME
+bitbucket.username=YOUR_BITBUCKET_USERNAME
+bitbucket.app.password=YOUR_BITBUCKET_APP_PASSWORD
+bitbucket.api.base-url=https://api.bitbucket.org/2.0
+bitbucket.api.token=YOUR_BITBUCKET_API_TOKEN
+bitbucket.repo.url=https://bitbucket.org/YOUR_WORKSPACE/YOUR_REPO
+bitbucket.repo.branch=main
+bitbucket.repo.srcRoot=SentryTestBackend/src/main/java
+
+# Frontend Configuration
+frontend.cors.allowed-origins=http://localhost:5173
