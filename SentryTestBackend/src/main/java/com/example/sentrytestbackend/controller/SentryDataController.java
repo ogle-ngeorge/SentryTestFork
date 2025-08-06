@@ -407,6 +407,78 @@ public class SentryDataController {
         return null; // No commit hash found
     }
 
+    // GET REQUEST TO GET ERROR DATA WITH ACTIVITY IN SPECIFIED TIME PERIOD
+    // Shows errors that either first occurred OR reoccurred within the time window
+    // Format: http://localhost:8081/api/sentry-errors/recent?project={projectSlug}&hours={hours}
+    // http://localhost:8081/api/sentry-errors/recent?project=codemap-testing (defaults to 24 hours)
+    // http://localhost:8081/api/sentry-errors/recent?project=codemap-testing&hours=168 (1 week)
+    @GetMapping("/recent")
+    public ResponseEntity<List<Map<String, Object>>> fetchRecentErrorsByProject(
+            @RequestParam("project") String projectName,
+            @RequestParam(value = "hours", defaultValue = "24") int hours) {
+        try {
+            String issuesJson = sentryDataFetcher.curlForSentryErrorDataByProject(organizationId, projectName);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode issues = mapper.readTree(issuesJson);
+            
+            // Calculate cutoff timestamp based on specified hours
+            long millisecondsAgo = System.currentTimeMillis() - (hours * 60L * 60L * 1000L);
+            java.time.Instant cutoffTime = java.time.Instant.ofEpochMilli(millisecondsAgo);
+            
+            List<Map<String, Object>> recentErrorList = new ArrayList<>();
+            for (JsonNode issue : issues) {
+                String firstSeenStr = issue.path("firstSeen").asText();
+                String lastSeenStr = issue.path("lastSeen").asText();
+                
+                boolean includeError = false;
+                
+                // Check firstSeen (for new errors)
+                if (!firstSeenStr.isEmpty() && !firstSeenStr.equals("null")) {
+                    try {
+                        java.time.Instant firstSeenTime = java.time.Instant.parse(firstSeenStr);
+                        if (firstSeenTime.isAfter(cutoffTime)) {
+                            includeError = true;
+                        }
+                    } catch (java.time.format.DateTimeParseException e) {
+                        // Continue to check lastSeen
+                    }
+                }
+                
+                // Check lastSeen (for recurring errors) if not already included
+                if (!includeError && !lastSeenStr.isEmpty()) {
+                    try {
+                        java.time.Instant lastSeenTime = java.time.Instant.parse(lastSeenStr);
+                        if (lastSeenTime.isAfter(cutoffTime)) {
+                            includeError = true;
+                        }
+                    } catch (java.time.format.DateTimeParseException e) {
+                        System.err.println("Failed to parse timestamps for issue: " + issue.path("id").asText());
+                        continue;
+                    }
+                }
+                
+                // Include error if it has activity within the time period
+                if (includeError) {
+                    Map<String, Object> errorInfo = new HashMap<>();
+                    errorInfo.put("id", issue.path("id").asText());
+                    errorInfo.put("title", issue.path("title").asText());
+                    errorInfo.put("count", issue.path("count").asInt());
+                    errorInfo.put("lastSeen", lastSeenStr);
+                    errorInfo.put("firstSeen", firstSeenStr);
+                    errorInfo.put("level", issue.path("level").asText());
+                    errorInfo.put("status", issue.path("status").asText());
+                    errorInfo.put("hoursSpecified", hours); // For debugging/confirmation
+                    recentErrorList.add(errorInfo);
+                }
+            }
+            
+            return ResponseEntity.ok(recentErrorList);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
     //
     // https://sentry.io/api/0/projects/noah-3t/android/issues/
 
