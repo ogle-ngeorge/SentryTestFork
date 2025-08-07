@@ -52,7 +52,7 @@ public class SentryDataGeminiController {
     // Format: http://localhost:8081/api/gemini-suggest/project/{project}/errorId/{errorId}?useBitbucket={true FOR BITBUCKET false FOR GITHUB}
     // Example: http://localhost:8081/api/gemini-suggest/project/android/errorId/6744676878?useBitbucket=true
     @GetMapping("/project/{project}/errorId/{errorId}")
-    public ResponseEntity<Map<String, String>> reviewErrorById(
+    public ResponseEntity<Map<String, Object>> reviewErrorById(
         @PathVariable String project,
         @PathVariable String errorId,
         @RequestParam(value = "useBitbucket", defaultValue = "false") boolean useBitbucket) {
@@ -93,6 +93,7 @@ public class SentryDataGeminiController {
 
         long startContext = System.currentTimeMillis();
         Map<String, Object> enhancedContext = sentryDataFetcher.extractEnhancedContext(errorData);
+        System.out.println("[DEBUG] enhancedContext: " + enhancedContext);
         long endContext = System.currentTimeMillis();
 
         List<String> suggestions;
@@ -105,31 +106,11 @@ public class SentryDataGeminiController {
         );
         long endGemini = System.currentTimeMillis();
 
-        long endTotal = System.currentTimeMillis();
-
-        System.out.println("==== Gemini Suggest Endpoint Timing Breakdown ====");
-        System.out.printf("Fetch Error Data: %d ms\n", endFetchError - startFetchError);
-        System.out.printf("Fetch Event IDs: %d ms\n", endEventIds - startEventIds);
-        System.out.printf("Fetch StackTrace JSON: %d ms\n", endStackTraceJson - startStackTraceJson);
-        System.out.printf("Extract Exception Node: %d ms\n", endExceptionNode - startExceptionNode);
-        System.out.printf("Build Stack Trace String: %d ms\n", endStackTrace - startStackTrace);
-        System.out.printf("Extract Enhanced Context: %d ms\n", endContext - startContext);
-        System.out.printf("Gemini AI Call: %d ms\n", endGemini - startGemini);
-        System.out.printf("TOTAL: %d ms\n", endTotal - startTotal);
-
-        Map<String, String> response = new LinkedHashMap<>();
-        response.put("errorId", errorId);
-        // Format the suggestion for neatness
-        StringBuilder formatted = new StringBuilder();
-        formatted.append("\uD83E\uDD16 **Gemini AI Suggestions**\n\n");
-        for (String suggestion : suggestions) {
-            // Add spacing and markdown code block if not present
-            if (!suggestion.trim().isEmpty()) {
-                formatted.append(suggestion.trim()).append("\n\n");
-            }
-        }
-        response.put("suggestion", formatted.toString().trim());
-        return ResponseEntity.ok(response);
+        // Instead of formatting as markdown, parse as JSON
+        String geminiRaw = String.join("\n", suggestions);
+        Map<String, Object> geminiJson = aiAnalysisService.parseGeminiJsonResponse(geminiRaw);
+        geminiJson.put("errorId", errorId);
+        return ResponseEntity.ok(geminiJson);
     }
 
     // GET REQUEST TO GEMINI & SENTRY TO GET SUGGESTION MULTIPLE ERRORS BASED ON ID

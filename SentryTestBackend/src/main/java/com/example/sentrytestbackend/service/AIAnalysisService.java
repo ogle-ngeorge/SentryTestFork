@@ -211,108 +211,23 @@ public class AIAnalysisService {
     // Using the StackTrace, Error Message, and code from github source code
     // Create a diagnosis and analysis as to what causes the problem using Gemini
     private String createCodeAnalysisPrompt(String stackTraceData, String sentryError, String githubCode){
-        return "You are an expert softare engineer analyzing stack trace data and error data from sentry. Please analyze the following lines " +
-        " and try to figure out where the error is coming from and what line." +
-        " Refer to the GitHub links in the stack trace for the exact code location." +
-        " Refer to the Stack Trace, Errors, and Code from Github for context. " +
-        " Please post the code snippet. \n\n" +
-        " Stack Trace:\n" + stackTraceData + "\n\n" +
-        " Sentry Error: \n" + sentryError + "\n\n" +
-        " Code from github: \n" + githubCode + "\n\n";
+        return "You are an expert software engineer analyzing stack trace data and error data from Sentry. Please analyze the following lines and try to figure out where the error is coming from and what line. Refer to the GitHub links in the stack trace for the exact code location. Refer to the Stack Trace, Errors, and Code from Github for context. Please post the code snippet.\n\n" +
+        "Stack Trace:\n" + stackTraceData + "\n\n" +
+        "Sentry Error: \n" + sentryError + "\n\n" +
+        "Code from github: \n" + githubCode + "\n\n" +
+        "\nIMPORTANT: Please respond ONLY in the following JSON format (do not include any markdown, code block, or explanation):\n" +
+        "{\n  \"cause\": \"\",\n  \"solution\": \"\",\n  \"pull_request\": {\n    \"title\": \"\",\n    \"description\": \"\",\n    \"commit_message\": \"\",\n    \"changes\": [\n      {\n        \"file\": \"\",\n        \"replacements\": [\n          {\n            \"start_line\": 0,\n            \"end_line\": 0,\n            \"replacement_code\": \"\"\n          }\n        ]\n      }\n    ]\n  }\n}\n";
     }
 
     // Create enhanced code analysis prompt with context (breadcrumbs, request details, error metadata)
     private String createEnhancedCodeAnalysisPrompt(String stackTraceData, String sentryError, String githubCode, Map<String, Object> enhancedContext) {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("You are an expert software engineer analyzing stack trace data and error data from Sentry. Please analyze the following " +
-        "and try to figure out where the error is coming from and what line. " +
-        "Refer to the GitHub links in the stack trace for the exact code location. " +
-        "Use the execution context (breadcrumbs, request details, error metadata) to understand the full picture. " +
-        "Please be specific and actionable in your analysis.\n\n");
-        
-        prompt.append("Stack Trace:\n").append(stackTraceData).append("\n\n");
-        prompt.append("Sentry Error Data:\n").append(sentryError).append("\n\n");
-        prompt.append("GitHub Code:\n").append(githubCode).append("\n\n");
-
-        // Add enhanced context if available
-        if (enhancedContext != null && !enhancedContext.isEmpty()) {
-            prompt.append("=== EXECUTION CONTEXT ===\n\n");
-            
-            // Add breadcrumbs
-            if (enhancedContext.containsKey("breadcrumbs")) {
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> breadcrumbs = (List<Map<String, Object>>) enhancedContext.get("breadcrumbs");
-                prompt.append("Breadcrumbs (execution trail leading to error):\n");
-                for (Map<String, Object> breadcrumb : breadcrumbs) {
-                    prompt.append("- ");
-                    if (breadcrumb.containsKey("timestamp")) prompt.append(breadcrumb.get("timestamp")).append(" ");
-                    if (breadcrumb.containsKey("level")) prompt.append("[").append(breadcrumb.get("level")).append("] ");
-                    if (breadcrumb.containsKey("category")) prompt.append("(").append(breadcrumb.get("category")).append(") ");
-                    if (breadcrumb.containsKey("message")) prompt.append(breadcrumb.get("message"));
-                    if (breadcrumb.containsKey("data")) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> data = (Map<String, Object>) breadcrumb.get("data");
-                        if (data.containsKey("method") && data.containsKey("url")) {
-                            prompt.append(" - ").append(data.get("method")).append(" ").append(data.get("url"));
-                        }
-                    }
-                    prompt.append("\n");
-                }
-                prompt.append("\n");
-            }
-            
-            // Add request details
-            if (enhancedContext.containsKey("request")) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> request = (Map<String, Object>) enhancedContext.get("request");
-                prompt.append("HTTP Request Details:\n");
-                for (Map.Entry<String, Object> entry : request.entrySet()) {
-                    prompt.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
-                }
-                prompt.append("\n");
-            }
-            
-            // Add error metadata
-            if (enhancedContext.containsKey("error")) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> error = (Map<String, Object>) enhancedContext.get("error");
-                prompt.append("Error Metadata:\n");
-                for (Map.Entry<String, Object> entry : error.entrySet()) {
-                    prompt.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
-                }
-                prompt.append("\n");
-            }
-            
-            // Add user context
-            if (enhancedContext.containsKey("user")) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> user = (Map<String, Object>) enhancedContext.get("user");
-                prompt.append("User Context:\n");
-                for (Map.Entry<String, Object> entry : user.entrySet()) {
-                    prompt.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
-                }
-                prompt.append("\n");
-            }
-            
-            // Add environment context
-            if (enhancedContext.containsKey("environment")) {
-                @SuppressWarnings("unchecked")
-                Map<String, String> environment = (Map<String, String>) enhancedContext.get("environment");
-                prompt.append("Environment:\n");
-                for (Map.Entry<String, String> entry : environment.entrySet()) {
-                    prompt.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
-                }
-                prompt.append("\n");
-            }
-        }
-
-        prompt.append("Please provide:\n" +
-                     "1. Root cause analysis based on the execution flow\n" +
-                     "2. Specific code location and line causing the issue\n" +
-                     "3. Immediate fix recommendations\n" +
-                     "4. Prevention strategies for similar errors");
-
-        return prompt.toString();
+        return "You are an expert software engineer analyzing stack trace data, error data from Sentry, and additional context. Please analyze the following and provide a code review.\n\n" +
+        "Stack Trace:\n" + stackTraceData + "\n\n" +
+        "Sentry Error: \n" + sentryError + "\n\n" +
+        "Code from github: \n" + githubCode + "\n\n" +
+        "Enhanced Context: \n" + enhancedContext.toString() + "\n\n" +
+        "\nIMPORTANT: Please respond ONLY in the following JSON format (do not include any markdown, code block, or explanation):\n" +
+        "{\n  \"cause\": \"\",\n  \"solution\": \"\",\n  \"pull_request\": {\n    \"title\": \"\",\n    \"description\": \"\",\n    \"commit_message\": \"\",\n    \"changes\": [\n      {\n        \"file\": \"\",\n        \"replacements\": [\n          {\n            \"start_line\": 0,\n            \"end_line\": 0,\n            \"replacement_code\": \"\"\n          }\n        ]\n      }\n    ]\n  }\n}\n";
     }
 
 
@@ -476,6 +391,37 @@ public class AIAnalysisService {
             
         } catch (Exception e) {
             return "🤖 GEMINI AI ANALYSIS:\n\nError parsing response: " + e.getMessage();
+        }
+    }
+
+    // Parse Gemini response as JSON for code review automation
+    public Map<String, Object> parseGeminiJsonResponse(String geminiResponse) {
+        try {
+            System.out.println("[DEBUG] Raw Gemini response:\n" + geminiResponse);
+            ObjectMapper mapper = new ObjectMapper();
+            // Try to parse the first code block or the whole response as JSON
+            String jsonText = geminiResponse;
+            // If Gemini wraps JSON in markdown, extract it
+            if (jsonText.contains("```json")) {
+                int start = jsonText.indexOf("```json") + 7;
+                int end = jsonText.indexOf("```", start);
+                if (end > start) {
+                    jsonText = jsonText.substring(start, end).trim();
+                }
+            }
+            return mapper.readValue(jsonText, Map.class);
+        } catch (Exception e) {
+            // Return a default structure if parsing fails
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("cause", "");
+            fallback.put("solution", "");
+            Map<String, Object> pr = new LinkedHashMap<>();
+            pr.put("title", "");
+            pr.put("description", "");
+            pr.put("commit_message", "");
+            pr.put("changes", new ArrayList<>());
+            fallback.put("pull_request", pr);
+            return fallback;
         }
     }
 
