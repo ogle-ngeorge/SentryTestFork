@@ -102,30 +102,12 @@ public class SentryDataController {
             String title = issue.path("title").asText();
             String lastSeen = issue.path("lastSeen").asText("");
             
-            // Use the new optimized method to get event data in one call
-            JsonNode eventData = sentryDataFetcher.getFirstEventData(issueId);
-            if (eventData != null) {
-                // Use event title if available (usually more detailed)
-                if (eventData.has("title") && !eventData.path("title").isNull()) {
-                    title = eventData.path("title").asText();
-                }
-                // Use event dateCreated if available (more accurate timestamp)
-                if (eventData.has("dateCreated") && !eventData.path("dateCreated").isNull()) {
-                    lastSeen = eventData.path("dateCreated").asText();
-                }
-            }
+            // The issues endpoint already provides all the data we need!
+            // No need for additional API calls to get event data
             
             IssueWithDate prev = mostRecentByTitle.get(title);
             if (prev == null || lastSeen.compareTo(prev.lastSeen) > 0) {
                 mostRecentByTitle.put(title, new IssueWithDate(issueId, lastSeen));
-            }
-            
-            // Add rate limiting to respect Sentry's API limits (max 15 requests per second)
-            try {
-                Thread.sleep(80); // 80ms delay = ~12.5 requests per second
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
             }
         }
 
