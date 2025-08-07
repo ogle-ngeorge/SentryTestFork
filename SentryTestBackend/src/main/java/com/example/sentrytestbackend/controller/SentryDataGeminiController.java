@@ -23,6 +23,7 @@ import com.example.sentrytestbackend.service.GitHubCodeFetcher;
 import com.example.sentrytestbackend.service.StackTraceGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RequestParam;
+import com.example.sentrytestbackend.service.BitbucketPrService;
 
 @RestController
 @RequestMapping("/api/gemini-suggest") // Base Annotation for base URL paths (EX ~ )
@@ -45,12 +46,15 @@ public class SentryDataGeminiController {
     @Autowired
     private SentryDataFetcher sentryDataFetcher;
 
+    @Autowired
+    private BitbucketPrService bitbucketPrService;
+
     @Value("${sentry.organization.id}")
     private String organizationId;
 
     // GET REQUEST TO GEMINI & SENTRY TO GET SUGGESTION FOR 1 ERROR BASED ON ID
     // Format: http://localhost:8081/api/gemini-suggest/project/{project}/errorId/{errorId}?useBitbucket={true FOR BITBUCKET false FOR GITHUB}
-    // Example: http://localhost:8081/api/gemini-suggest/project/android/errorId/6744676878?useBitbucket=true
+    // Example: http://localhost:8081/api/gemini-suggest/project/codemap-testing/errorId/6779537685?useBitbucket=true
     @GetMapping("/project/{project}/errorId/{errorId}")
     public ResponseEntity<Map<String, Object>> reviewErrorById(
         @PathVariable String project,
@@ -110,6 +114,14 @@ public class SentryDataGeminiController {
         String geminiRaw = String.join("\n", suggestions);
         Map<String, Object> geminiJson = aiAnalysisService.parseGeminiJsonResponse(geminiRaw);
         geminiJson.put("errorId", errorId);
+        // Automatically create Bitbucket PR
+        String prResult = null;
+        try {
+            prResult = bitbucketPrService.createPullRequestFromGeminiJson(geminiJson);
+        } catch (Exception e) {
+            prResult = "Bitbucket PR creation failed: " + e.getMessage();
+        }
+        geminiJson.put("bitbucket_pr_result", prResult);
         return ResponseEntity.ok(geminiJson);
     }
 
