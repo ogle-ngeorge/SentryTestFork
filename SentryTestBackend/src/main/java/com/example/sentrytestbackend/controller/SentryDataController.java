@@ -97,25 +97,37 @@ public class SentryDataController {
             // Map to keep only the most recent issue for each title
             Map<String, IssueWithDate> mostRecentByTitle = new HashMap<>();
 
-            for (JsonNode issue : issues) {
-                String issueId = issue.path("id").asText();
-                List<String> eventIds = sentryDataFetcher.getEventIds(issueId);
-                String title = issue.path("title").asText();
-                String lastSeen = issue.path("lastSeen").asText("");
-                if (!eventIds.isEmpty()) {
-                    JsonNode eventJson = sentryDataFetcher.curlForStacktraceByEventId(issueId, eventIds.get(0));
-                    if (eventJson.has("title")) {
-                        title = eventJson.path("title").asText();
-                    }
-                    if (eventJson.has("dateCreated")) {
-                        lastSeen = eventJson.path("dateCreated").asText();
-                    }
+                    for (JsonNode issue : issues) {
+            String issueId = issue.path("id").asText();
+            String title = issue.path("title").asText();
+            String lastSeen = issue.path("lastSeen").asText("");
+            
+            // Use the new optimized method to get event data in one call
+            JsonNode eventData = sentryDataFetcher.getFirstEventData(issueId);
+            if (eventData != null) {
+                // Use event title if available (usually more detailed)
+                if (eventData.has("title") && !eventData.path("title").isNull()) {
+                    title = eventData.path("title").asText();
                 }
-                IssueWithDate prev = mostRecentByTitle.get(title);
-                if (prev == null || lastSeen.compareTo(prev.lastSeen) > 0) {
-                    mostRecentByTitle.put(title, new IssueWithDate(issueId, lastSeen));
+                // Use event dateCreated if available (more accurate timestamp)
+                if (eventData.has("dateCreated") && !eventData.path("dateCreated").isNull()) {
+                    lastSeen = eventData.path("dateCreated").asText();
                 }
             }
+            
+            IssueWithDate prev = mostRecentByTitle.get(title);
+            if (prev == null || lastSeen.compareTo(prev.lastSeen) > 0) {
+                mostRecentByTitle.put(title, new IssueWithDate(issueId, lastSeen));
+            }
+            
+            // Add rate limiting to respect Sentry's API limits (max 15 requests per second)
+            try {
+                Thread.sleep(80); // 80ms delay = ~12.5 requests per second
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
 
             Map<String, String> dataMap = new HashMap<>();
             for (Map.Entry<String, IssueWithDate> entry : mostRecentByTitle.entrySet()) {

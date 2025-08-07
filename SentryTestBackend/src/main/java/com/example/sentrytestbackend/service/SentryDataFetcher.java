@@ -251,6 +251,31 @@ public class SentryDataFetcher {
         }
     }
 
+    // Returns first event data (includes title, dateCreated, etc.) without needing additional API call
+    // This is much more efficient than getEventIds + curlForStacktraceByEventId
+    public JsonNode getFirstEventData(String issueId){
+        try {
+            String url = String.format("%s/api/0/issues/%s/events/", sentryBaseUrl, issueId);
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + sentryApiToken);
+            headers.set("Content-Type", "application/json");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode events = mapper.readTree(response.getBody());
+            
+            // Return the first event if available
+            if (events.isArray() && events.size() > 0) {
+                return events.get(0);
+            }
+            return null;
+        } catch (Exception e) {
+            Sentry.captureException(e);
+            throw new RuntimeException("Unable to fetch event data from Sentry");
+        }
+    }
+
 // Parses Sentry errors and Returns the titles
 // Params ~ JSON Erros from Sentry
 // Returns List<String> ArrayList of All Error Titles
