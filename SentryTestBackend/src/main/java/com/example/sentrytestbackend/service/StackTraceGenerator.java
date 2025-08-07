@@ -274,7 +274,7 @@ public String buildStackTraceString(JsonNode exception, boolean withGithubLinks)
      * @param eventData Complete Sentry event JSON
      * @return Commit hash string, or null if not found
      */
-    private String extractCommitHashFromEvent(JsonNode eventData) {
+    public String extractCommitHashFromEvent(JsonNode eventData) {
         if (eventData == null) return null;
         
         // First, try to get from release field (this is set by pipeline)

@@ -75,6 +75,7 @@ public class SentryDataController {
                 errorInfo.put("title", issue.path("title").asText());
                 errorInfo.put("count", issue.path("count").asInt());
                 errorInfo.put("lastSeen", issue.path("lastSeen").asText());
+                errorInfo.put("userCount", issue.path("userCount").asInt()); // Add userCount
                 errorList.add(errorInfo);
             }
             return ResponseEntity.ok(errorList);
@@ -189,7 +190,7 @@ public class SentryDataController {
             }
 
             // Extract commit hash from event data
-            String commitHash = extractCommitHashFromEvent(eventJson);
+            String commitHash = stackTraceGenerator.extractCommitHashFromEvent(eventJson);
 
             Map<String, Object> info = new LinkedHashMap<>();
             info.put("id", errorData.path("id").asText());
@@ -197,10 +198,11 @@ public class SentryDataController {
             info.put("timestamp", errorData.path("lastSeen").asText());
             info.put("projectId", errorData.path("project").path("id").asText());
             info.put("count", errorData.path("count").asInt());
+            info.put("userCount", errorData.path("userCount").asInt()); // Add userCount
             info.put("commitHash", commitHash != null ? commitHash : "not-found");
             info.put("stackTrace", stackTrace);
             info.put("codeSnippet", codeSnippet);
-
+            System.out.println("[DEBUG] Returning error info: " + info);
             return ResponseEntity.ok(info);
         } catch (Exception e) {
             Map<String, Object> errorInfo = new LinkedHashMap<>();
@@ -290,7 +292,7 @@ public class SentryDataController {
                         JsonNode exceptionNode = stackTraceGenerator.getExceptionNode(eventJson);
                         
                         // Extract commit hash from event data
-                        commitHash = extractCommitHashFromEvent(eventJson);
+                        commitHash = stackTraceGenerator.extractCommitHashFromEvent(eventJson);
                         
                         stackTrace = stackTraceGenerator.buildStackTraceStringWithBitbucketLinks(exceptionNode, bitbucketCodeFetcher, eventJson);
                         try {
@@ -320,10 +322,11 @@ public class SentryDataController {
                     info.put("timestamp", timestamp);
                     info.put("projectId", projectId);
                     info.put("count", issue.path("count").asInt());
+                    info.put("userCount", issue.path("userCount").asInt()); // Add userCount
                     info.put("commitHash", commitHash != null ? commitHash : "not-found");
                     info.put("stackTrace", stackTrace);
                     info.put("bitbucketCode", bitbucketCodeOnly);
-
+                    System.out.println("[DEBUG] Returning batch error info: " + info);
                     result.add(info);
                 }
             }
@@ -331,74 +334,6 @@ public class SentryDataController {
         } catch (Exception e) {
             return ResponseEntity.status(500).build();
         }
-    }
-
-
-    // Helper class for deduplication by title and date
-    // Used by MapIdsWithErrorName to filter duplicate old errors.
-    private static class IssueWithDate {
-        public final String issueId;
-        public final String lastSeen;
-        public IssueWithDate(String issueId, String lastSeen) {
-            this.issueId = issueId;
-            this.lastSeen = lastSeen;
-        }
-    }
-
-    // GET REQUEST TO GET GROUPED ERROR MESSAGES FOR ALL ERRORS IN PROJECT
-    // Format: http://localhost:8081/api/sentry-errors/project/{project}/errors
-    // http://localhost:8081/api/sentry-errors/project/android/errors
-    // @GetMapping("/project/{project}/errors")
-    // public ResponseEntity<List<Map<String, String>>> fetchErrorsByTitles(
-    //     @PathVariable String project,
-    //     @RequestParam("ids") String idsCsv) {
-
-    // }
-
-    /**
-     * Extracts commit hash from Sentry event data.
-     * Looks for commit hash in release field, tags, or context.
-     * @param eventData Complete Sentry event JSON
-     * @return Commit hash string, or null if not found
-     */
-    private String extractCommitHashFromEvent(JsonNode eventData) {
-        if (eventData == null) return null;
-        
-        // First, try to get from release field (this is set by pipeline)
-        JsonNode releaseNode = eventData.path("release");
-        if (!releaseNode.isMissingNode() && !releaseNode.asText().isEmpty()) {
-            String release = releaseNode.asText();
-            // Sentry release is set as first 7 chars of commit in pipeline
-            if (release.matches("^[a-f0-9]{7}$")) {
-                return release;
-            }
-        }
-        
-        // Try to get from tags
-        JsonNode tagsNode = eventData.path("tags");
-        if (tagsNode.isArray()) {
-            for (JsonNode tag : tagsNode) {
-                JsonNode keyNode = tag.path("key");
-                JsonNode valueNode = tag.path("value");
-                if ("commit".equals(keyNode.asText()) || "commit_hash".equals(keyNode.asText())) {
-                    String commitValue = valueNode.asText();
-                    if (commitValue.length() >= 7) {
-                        return commitValue.substring(0, 7); // Use first 7 chars
-                    }
-                }
-            }
-        }
-        
-        // Try to get from context
-        JsonNode contextNode = eventData.path("contexts").path("app").path("build_version");
-        if (!contextNode.isMissingNode()) {
-            String buildVersion = contextNode.asText();
-            if (buildVersion.matches("^[a-f0-9]{7,}$")) {
-                return buildVersion.substring(0, 7);
-            }
-        }
-        
-        return null; // No commit hash found
     }
 
     // GET REQUEST TO GET ERROR DATA WITH ACTIVITY IN SPECIFIED TIME PERIOD
@@ -472,6 +407,16 @@ public class SentryDataController {
             return ResponseEntity.status(500).build();
         }
     }
+
+    // Add this helper class at the end of SentryDataController
+    private static class IssueWithDate {
+        public final String issueId;
+        public final String lastSeen;
+        public IssueWithDate(String issueId, String lastSeen) {
+        this.issueId = issueId;
+            this.lastSeen = lastSeen;
+            }
+        }
 
     //
     // https://sentry.io/api/0/projects/noah-3t/android/issues/

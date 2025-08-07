@@ -184,6 +184,7 @@ public class SentryDataFetcher {
             throw new RuntimeException("Unable to fetch list of error ids from Sentry");
         }
     }
+
 // HELPER METHODS //
 // Collection of methods to help accomplish tasks
 // (i.e, generate random IDs, Parsing, Curling, Formatting)
