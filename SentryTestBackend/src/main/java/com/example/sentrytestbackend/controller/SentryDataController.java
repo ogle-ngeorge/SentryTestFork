@@ -392,6 +392,7 @@ public class SentryDataController {
                     errorInfo.put("id", issue.path("id").asText());
                     errorInfo.put("title", issue.path("title").asText());
                     errorInfo.put("count", issue.path("count").asInt());
+                    errorInfo.put("userCount", issue.path("userCount").asInt());
                     errorInfo.put("lastSeen", lastSeenStr);
                     errorInfo.put("firstSeen", firstSeenStr);
                     errorInfo.put("level", issue.path("level").asText());
