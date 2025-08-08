@@ -128,7 +128,24 @@ public class BitbucketPrService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(payload, headers), Map.class);
         Map<String, Object> body = response.getBody();
-        return body != null && body.containsKey("links") ? body.get("links").toString() : "PR created";
+        if (body != null && body.containsKey("links")) {
+            try {
+                Map<String, Object> links = (Map<String, Object>) body.get("links");
+                Map<String, Object> html = (Map<String, Object>) links.get("html");
+                String href = html != null ? (String) html.get("href") : null;
+                if (href != null && !href.isEmpty()) {
+                    return href;
+                }
+                // Fallback to self link
+                Map<String, Object> self = (Map<String, Object>) links.get("self");
+                String selfHref = self != null ? (String) self.get("href") : null;
+                if (selfHref != null && !selfHref.isEmpty()) {
+                    return selfHref;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return "PR created";
     }
 
     /**

@@ -24,6 +24,8 @@ import com.example.sentrytestbackend.service.StackTraceGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RequestParam;
 import com.example.sentrytestbackend.service.BitbucketPrService;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PostMapping;
 
 @RestController
 @RequestMapping("/api/gemini-suggest") // Base Annotation for base URL paths (EX ~ )
@@ -114,14 +116,7 @@ public class SentryDataGeminiController {
         String geminiRaw = String.join("\n", suggestions);
         Map<String, Object> geminiJson = aiAnalysisService.parseGeminiJsonResponse(geminiRaw);
         geminiJson.put("errorId", errorId);
-        // Automatically create Bitbucket PR
-        String prResult = null;
-        try {
-            prResult = bitbucketPrService.createPullRequestFromGeminiJson(geminiJson);
-        } catch (Exception e) {
-            prResult = "Bitbucket PR creation failed: " + e.getMessage();
-        }
-        geminiJson.put("bitbucket_pr_result", prResult);
+        // Do NOT auto-create Bitbucket PR here; two-step flow is handled by POST /bitbucket-pr
         return ResponseEntity.ok(geminiJson);
     }
 
@@ -178,5 +173,21 @@ public class SentryDataGeminiController {
         }
 
         return ResponseEntity.ok(batchResults);
+    }
+
+    /**
+     * POST endpoint to create a Bitbucket PR from Gemini JSON (two-step process).
+     * Example: POST /api/gemini-suggest/bitbucket-pr
+     * Body: Gemini JSON from reviewErrorById
+     */
+    @PostMapping("/bitbucket-pr")
+    public ResponseEntity<?> createBitbucketPrFromGemini(@RequestBody Map<String, Object> geminiJson) {
+        String prResult;
+        try {
+            prResult = bitbucketPrService.createPullRequestFromGeminiJson(geminiJson);
+            return ResponseEntity.ok(Map.of("bitbucket_pr_result", prResult));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
     }
 }

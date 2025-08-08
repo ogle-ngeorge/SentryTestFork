@@ -103,6 +103,7 @@ public class TestController {
                 System.err.println("[DivideByZero] WARNING: Could not ensure Sentry release: " + releaseEx.getMessage());
             }
 
+            
             int x = 0;
             int result = 500 / x;
             return ResponseEntity.ok(result);
