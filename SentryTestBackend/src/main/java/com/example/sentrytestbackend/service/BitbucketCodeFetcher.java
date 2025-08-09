@@ -27,6 +27,8 @@ public class BitbucketCodeFetcher {
     private String bitbucketRepoSrcRoot;
     @Value("${bitbucket.api.token}")
     private String bitbucketApiToken;
+    @Value("${bitbucket.sentry-demo-app.api.token:}")
+    private String sentryDemoAppApiToken;
     @Value("${bitbucket.workspace}")
     private String bitbucketWorkspace;
     @Value("${bitbucket.repo.name}")
@@ -172,7 +174,7 @@ public class BitbucketCodeFetcher {
             workspace, repo, ref, filePath
         );
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + bitbucketApiToken);
+        headers.set("Authorization", "Bearer " + selectTokenForWorkspaceRepo(workspace, repo));
         HttpEntity<String> entity = new HttpEntity<>(headers);
 
         try {
@@ -271,7 +273,7 @@ public class BitbucketCodeFetcher {
             System.out.println("[DEBUG] Getting commit for file: " + filePath + " at time: " + errorTimestamp);
             
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + bitbucketApiToken);
+            headers.set("Authorization", "Bearer " + selectTokenForWorkspaceRepo(workspace, repo));
             HttpEntity<String> entity = new HttpEntity<>(headers);
 
             ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.GET, entity, String.class);
@@ -308,7 +310,7 @@ public class BitbucketCodeFetcher {
             System.out.println("[DEBUG] Getting branch commit for: " + branch + " at time: " + errorTimestamp);
             
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + bitbucketApiToken);
+            headers.set("Authorization", "Bearer " + selectTokenForWorkspaceRepo(workspace, repo));
             HttpEntity<String> entity = new HttpEntity<>(headers);
 
             ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.GET, entity, String.class);
@@ -532,8 +534,9 @@ public class BitbucketCodeFetcher {
             String apiUrl = String.format("https://api.bitbucket.org/2.0/repositories/%s/%s", bitbucketWorkspace, bitbucketRepoName);
             
             HttpHeaders headers = new HttpHeaders();
-            if (bitbucketApiToken != null && !bitbucketApiToken.isEmpty()) {
-                headers.set("Authorization", "Bearer " + bitbucketApiToken);
+            String token = selectTokenForWorkspaceRepo(bitbucketWorkspace, bitbucketRepoName);
+            if (token != null && !token.isEmpty()) {
+                headers.set("Authorization", "Bearer " + token);
             }
             HttpEntity<String> entity = new HttpEntity<>(headers);
             
@@ -570,8 +573,9 @@ public class BitbucketCodeFetcher {
             System.out.println("[BitbucketCodeFetcher] Checking branch: " + currentBranch + " for current commit");
             
             HttpHeaders headers = new HttpHeaders();
-            if (bitbucketApiToken != null && !bitbucketApiToken.isEmpty()) {
-                headers.set("Authorization", "Bearer " + bitbucketApiToken);
+            String token = selectTokenForWorkspaceRepo(bitbucketWorkspace, bitbucketRepoName);
+            if (token != null && !token.isEmpty()) {
+                headers.set("Authorization", "Bearer " + token);
             }
             HttpEntity<String> entity = new HttpEntity<>(headers);
             
@@ -620,8 +624,9 @@ public class BitbucketCodeFetcher {
             );
 
             HttpHeaders headers = new HttpHeaders();
-            if (bitbucketApiToken != null && !bitbucketApiToken.isEmpty()) {
-                headers.set("Authorization", "Bearer " + bitbucketApiToken);
+            String token = selectTokenForWorkspaceRepo(workspace, repoSlug);
+            if (token != null && !token.isEmpty()) {
+                headers.set("Authorization", "Bearer " + token);
             }
             HttpEntity<String> entity = new HttpEntity<>(headers);
 
@@ -640,5 +645,15 @@ public class BitbucketCodeFetcher {
         }
 
         return null;
+    }
+
+    private String selectTokenForWorkspaceRepo(String workspace, String repo) {
+        // Use the special token for sentry-demo-app repo; fallback to default
+        if (repo != null && repo.equalsIgnoreCase("sentry-demo-app")) {
+            if (sentryDemoAppApiToken != null && !sentryDemoAppApiToken.isEmpty()) {
+                return sentryDemoAppApiToken;
+            }
+        }
+        return bitbucketApiToken;
     }
 }

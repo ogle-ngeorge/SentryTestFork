@@ -26,6 +26,8 @@ public class BitbucketPrService {
     private String defaultMainBranch;
     @Value("${bitbucket.api.token}")
     private String apiToken;
+    @Value("${bitbucket.sentry-demo-app.api.token:}")
+    private String sentryDemoAppApiToken;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -73,23 +75,24 @@ public class BitbucketPrService {
         String branchName = generateBranchName((String) pr.get("title"));
         String commitMessage = (String) pr.get("commit_message");
         List<Map<String, Object>> changes = (List<Map<String, Object>>) pr.get("changes");
+        HttpHeaders authHeaders = buildAuthHeadersForProject(project);
 
         // 1. Get latest commit hash of main branch
-        String mainHash = getMainBranchCommitHash(target.workspace, target.repoSlug, target.mainBranch);
+        String mainHash = getMainBranchCommitHash(target.workspace, target.repoSlug, target.mainBranch, authHeaders);
         // 2. Create branch
-        createBranch(target.workspace, target.repoSlug, branchName, mainHash);
+        createBranch(target.workspace, target.repoSlug, branchName, mainHash, authHeaders);
         // 3. For each file, apply replacements and commit
         for (Map<String, Object> change : changes) {
             String filePath = (String) change.get("file");
             List<Map<String, Object>> replacements = (List<Map<String, Object>>) change.get("replacements");
             FileUpdateResult update = applyReplacementsToFileWithPathResolution(
                 target.workspace, target.repoSlug, target.mainBranch,
-                filePath, replacements, repoConfig
+                filePath, replacements, repoConfig, authHeaders
             );
-            commitFileChange(target.workspace, target.repoSlug, branchName, commitMessage, update.path, update.updatedContent);
+            commitFileChange(target.workspace, target.repoSlug, branchName, commitMessage, update.path, update.updatedContent, authHeaders);
         }
         // 4. Create PR
-        return createPullRequest(target.workspace, target.repoSlug, target.mainBranch, pr, branchName);
+        return createPullRequest(target.workspace, target.repoSlug, target.mainBranch, pr, branchName, authHeaders);
     }
 
     /**
@@ -97,9 +100,8 @@ public class BitbucketPrService {
      * @return The commit hash string.
      * @throws Exception if the Bitbucket API call fails.
      */
-    private String getMainBranchCommitHash(String workspace, String repoSlug, String mainBranch) throws Exception {
+    private String getMainBranchCommitHash(String workspace, String repoSlug, String mainBranch, HttpHeaders headers) throws Exception {
         String url = String.format("https://api.bitbucket.org/2.0/repositories/%s/%s/refs/branches/%s", workspace, repoSlug, mainBranch);
-        HttpHeaders headers = getAuthHeaders();
         ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
         Map<String, Object> body = response.getBody();
         if (body == null || !body.containsKey("target")) throw new RuntimeException("Failed to get main branch hash");
@@ -112,14 +114,13 @@ public class BitbucketPrService {
      * @param branchName The name of the new branch.
      * @param targetHash The commit hash to branch from.
      */
-    private void createBranch(String workspace, String repoSlug, String branchName, String targetHash) {
+    private void createBranch(String workspace, String repoSlug, String branchName, String targetHash, HttpHeaders headers) {
         String url = String.format("https://api.bitbucket.org/2.0/repositories/%s/%s/refs/branches", workspace, repoSlug);
         Map<String, Object> payload = new HashMap<>();
         payload.put("name", branchName);
         Map<String, String> target = new HashMap<>();
         target.put("hash", targetHash);
         payload.put("target", target);
-        HttpHeaders headers = getAuthHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(payload, headers), Map.class);
     }
@@ -131,9 +132,8 @@ public class BitbucketPrService {
      * @param filePath The file path to update.
      * @param newContent The new file content.
      */
-    private void commitFileChange(String workspace, String repoSlug, String branch, String commitMessage, String filePath, String newContent) {
+    private void commitFileChange(String workspace, String repoSlug, String branch, String commitMessage, String filePath, String newContent, HttpHeaders headers) {
         String url = String.format("https://api.bitbucket.org/2.0/repositories/%s/%s/src", workspace, repoSlug);
-        HttpHeaders headers = getAuthHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         MultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
         body.add("branch", branch);
@@ -148,7 +148,7 @@ public class BitbucketPrService {
      * @param branchName The source branch name.
      * @return The PR result or link.
      */
-    private String createPullRequest(String workspace, String repoSlug, String mainBranch, Map<String, Object> pr, String branchName) {
+    private String createPullRequest(String workspace, String repoSlug, String mainBranch, Map<String, Object> pr, String branchName, HttpHeaders headers) {
         String url = String.format("https://api.bitbucket.org/2.0/repositories/%s/%s/pullrequests", workspace, repoSlug);
         Map<String, Object> payload = new HashMap<>();
         payload.put("title", pr.get("title"));
@@ -160,7 +160,6 @@ public class BitbucketPrService {
         destination.put("branch", Collections.singletonMap("name", mainBranch));
         payload.put("destination", destination);
         payload.put("close_source_branch", true);
-        HttpHeaders headers = getAuthHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(payload, headers), Map.class);
         Map<String, Object> body = response.getBody();
@@ -191,10 +190,9 @@ public class BitbucketPrService {
      * @return The updated file content as a string.
      * @throws Exception if file download or patching fails.
      */
-    private String applyReplacementsToFile(String workspace, String repoSlug, String mainBranch, String filePath, List<Map<String, Object>> replacements) throws Exception {
+    private String applyReplacementsToFile(String workspace, String repoSlug, String mainBranch, String filePath, List<Map<String, Object>> replacements, HttpHeaders headers) throws Exception {
         // 1. Download the file from Bitbucket
         String url = String.format("https://api.bitbucket.org/2.0/repositories/%s/%s/src/%s/%s", workspace, repoSlug, mainBranch, filePath);
-        HttpHeaders headers = getAuthHeaders();
         ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
         String content = response.getBody();
         if (content == null) throw new RuntimeException("Failed to fetch file content");
@@ -223,7 +221,7 @@ public class BitbucketPrService {
      */
     private FileUpdateResult applyReplacementsToFileWithPathResolution(
             String workspace, String repoSlug, String mainBranch,
-            String filePath, List<Map<String, Object>> replacements, RepoConfig repoConfig) throws Exception {
+            String filePath, List<Map<String, Object>> replacements, RepoConfig repoConfig, HttpHeaders headers) throws Exception {
 
         List<String> candidates = new ArrayList<>();
         if (filePath != null && filePath.contains("/")) {
@@ -240,7 +238,6 @@ public class BitbucketPrService {
             }
         }
 
-        HttpHeaders headers = getAuthHeaders();
         for (String candidate : candidates) {
             String url = String.format("https://api.bitbucket.org/2.0/repositories/%s/%s/src/%s/%s", workspace, repoSlug, mainBranch, candidate);
             try {
@@ -295,9 +292,16 @@ public class BitbucketPrService {
      * Gets the HTTP headers for Bitbucket API authentication.
      * @return HttpHeaders with Authorization set.
      */
-    private HttpHeaders getAuthHeaders() {
+    private HttpHeaders buildAuthHeadersForProject(String project) {
+        String tokenToUse = apiToken;
+        if (project != null) {
+            String normalized = project.trim().toLowerCase();
+            if (("sentry-demo-app".equals(normalized) || "sentry-demo".equals(normalized)) && sentryDemoAppApiToken != null && !sentryDemoAppApiToken.isEmpty()) {
+                tokenToUse = sentryDemoAppApiToken;
+            }
+        }
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + apiToken);
+        headers.set("Authorization", "Bearer " + tokenToUse);
         return headers;
     }
 
