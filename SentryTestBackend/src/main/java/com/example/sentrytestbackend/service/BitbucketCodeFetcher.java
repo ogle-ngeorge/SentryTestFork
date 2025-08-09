@@ -101,6 +101,40 @@ public class BitbucketCodeFetcher {
     }
 
     /**
+     * Builds a Bitbucket link against a specific repository configuration (per-project override).
+     */
+    public String buildBitbucketLinkWithCommitForRepo(String module, String filename, int lineno, RepoConfig repo, String commitHash) {
+        int lastDot = module.lastIndexOf('.');
+        String packagePath = lastDot != -1 ? module.substring(0, lastDot).replace('.', '/') : "";
+        String srcRoot = repo.getSrcRoot();
+        if (!srcRoot.endsWith("/")) srcRoot += "/";
+        if (!packagePath.isEmpty() && !packagePath.endsWith("/")) packagePath += "/";
+        String fullPath = srcRoot + packagePath + filename;
+
+        String[] parts = fullPath.split("/");
+        StringBuilder dedupedPath = new StringBuilder();
+        String prev = null;
+        for (String part : parts) {
+            if (part.isEmpty()) continue;
+            if (!part.equals(prev)) {
+                if (dedupedPath.length() > 0) dedupedPath.append("/");
+                dedupedPath.append(part);
+            }
+            prev = part;
+        }
+
+        String ref = (commitHash != null && !commitHash.isEmpty() && !"unknown".equals(commitHash)) ? commitHash : repo.getBranch();
+        String bitbucketUrl = repo.getRepoUrl() + "/src/" + ref + "/" + dedupedPath.toString();
+        if (lineno != -1) {
+            bitbucketUrl += "#lines-" + lineno;
+        }
+        // Normalize
+        bitbucketUrl = bitbucketUrl.replaceFirst("^(https?:)/+", "$1//");
+        bitbucketUrl = bitbucketUrl.replaceAll("(?<!:)//+", "/");
+        return bitbucketUrl;
+    }
+
+    /**
      * Fetches a code snippet from Bitbucket for a given file and line number, using the commit as of the error timestamp.
      * @param bitbucketLink Bitbucket file link in the format: https://bitbucket.org/{workspace}/{repo}/src/{branch}/{path}#lines-{line}
      * @param context Number of lines of context before and after the error line
@@ -177,6 +211,27 @@ public class BitbucketCodeFetcher {
             String bitbucketLink = matcher.group();
             // Only fetch code for files in your project root
             if (bitbucketLink.contains(bitbucketRepoSrcRoot)) {
+                String snippet = mapToBitbucketCode(bitbucketLink, context, errorTimestamp);
+                allSnippets.append("Snippet for: ").append(bitbucketLink).append("\n");
+                allSnippets.append(snippet).append("\n\n");
+            }
+        }
+        if (allSnippets.length() == 0) {
+            return "No Bitbucket links found in stack trace.";
+        }
+        return allSnippets.toString();
+    }
+
+    /**
+     * Variant that filters snippets using a provided srcRoot (per-project filtering).
+     */
+    public String getBitbucketCodeFromStackTrace(String stackTrace, int context, String errorTimestamp, String srcRootFilter) {
+        StringBuilder allSnippets = new StringBuilder();
+        Pattern linkPattern = Pattern.compile("https://bitbucket.org/[^\\s\\]]+#lines-\\d+");
+        Matcher matcher = linkPattern.matcher(stackTrace);
+        while (matcher.find()) {
+            String bitbucketLink = matcher.group();
+            if (srcRootFilter == null || srcRootFilter.isEmpty() || bitbucketLink.contains(srcRootFilter)) {
                 String snippet = mapToBitbucketCode(bitbucketLink, context, errorTimestamp);
                 allSnippets.append("Snippet for: ").append(bitbucketLink).append("\n");
                 allSnippets.append(snippet).append("\n\n");

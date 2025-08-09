@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import java.util.ArrayList;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.sentrytestbackend.service.SentryReleaseService;
+import com.example.sentrytestbackend.service.RepoResolver;
 
 
 @RestController
@@ -44,6 +45,9 @@ public class SentryDataController {
 
     @Autowired
     private SentryReleaseService sentryReleaseService;
+
+    @Autowired
+    private RepoResolver repoResolver;
 
     @Value("${stacktrace.project.root}")
     private String stacktraceProjectRoot;
@@ -146,10 +150,10 @@ public class SentryDataController {
             String stackTrace;
             String codeSnippet = "";
             if ("bitbucket".equalsIgnoreCase(codeHost)) {
-                stackTrace = stackTraceGenerator.buildStackTraceStringWithBitbucketLinks(exceptionNode, bitbucketCodeFetcher, eventJson);
+                stackTrace = stackTraceGenerator.buildStackTraceStringAuto(exceptionNode, bitbucketCodeFetcher, eventJson, project);
                 System.out.println("[DEBUG] Stack trace with Bitbucket links:\n" + stackTrace);
                 try {
-                    String raw = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 3, errorData.path("lastSeen").asText());
+                    String raw = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 3, errorData.path("lastSeen").asText(), repoResolver.resolve(project).getSrcRoot());
                     StringBuilder filtered = new StringBuilder();
                     String[] snippets = raw.split("\\n\\nSnippet for:");
                     for (String snippet : snippets) {
@@ -157,7 +161,8 @@ public class SentryDataController {
                         if (!snippet.startsWith("Snippet for:")) {
                             fullSnippet = "Snippet for:" + snippet;
                         }
-                        if (fullSnippet.contains("com/example/sentrytestbackend")) {
+                        String srcRootFilter = repoResolver.resolve(project).getSrcRoot();
+                        if (srcRootFilter == null || srcRootFilter.isEmpty() || fullSnippet.contains(srcRootFilter.replace("/", "/"))) {
                             filtered.append(fullSnippet.trim()).append("\n\n");
                         }
                     }
@@ -294,9 +299,9 @@ public class SentryDataController {
                         // Extract commit hash from event data
                         commitHash = stackTraceGenerator.extractCommitHashFromEvent(eventJson);
                         
-                        stackTrace = stackTraceGenerator.buildStackTraceStringWithBitbucketLinks(exceptionNode, bitbucketCodeFetcher, eventJson);
+                        stackTrace = stackTraceGenerator.buildStackTraceStringAuto(exceptionNode, bitbucketCodeFetcher, eventJson, project);
                         try {
-                            String raw = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 3, issue.path("lastSeen").asText());
+                            String raw = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 3, issue.path("lastSeen").asText(), repoResolver.resolve(project).getSrcRoot());
                             StringBuilder filtered = new StringBuilder();
                             String[] snippets = raw.split("\\n\\nSnippet for:");
                             for (String snippet : snippets) {
@@ -304,7 +309,8 @@ public class SentryDataController {
                                 if (!snippet.startsWith("Snippet for:")) {
                                     fullSnippet = "Snippet for:" + snippet;
                                 }
-                                if (fullSnippet.contains("com/example/sentrytestbackend")) {
+                                String srcRootFilter = repoResolver.resolve(project).getSrcRoot();
+                                if (srcRootFilter == null || srcRootFilter.isEmpty() || fullSnippet.contains(srcRootFilter.replace("/", "/"))) {
                                     filtered.append(fullSnippet.trim()).append("\n\n");
                                 }
                             }

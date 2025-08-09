@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.context.event.EventListener;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import java.util.Set;
 
 @Service
 public class StackTraceGenerator {
@@ -16,6 +17,9 @@ public class StackTraceGenerator {
 
     @Autowired
     private SentryReleaseService sentryReleaseService;
+
+    @Autowired
+    private RepoResolver repoResolver;
 
     // Variables to connect to github Repo
     @Value("${github.repo.url}")
@@ -44,6 +48,170 @@ public class StackTraceGenerator {
             }
         }
         System.out.println("[StackTrace] Detected application name for filtering: '" + detectedAppName + "'");
+    }
+    private static final Set<String> ANDROID_FRAMEWORK_PREFIXES = Set.of(
+            "androidx.",
+            "android.",
+            "java.",
+            "kotlin.",
+            "kotlinx.",
+            "dalvik.",
+            "com.android.",
+            "sun.",
+            "org.jetbrains.kotlin"
+    );
+
+    private static boolean isAndroidFrameworkModule(String module) {
+        if (module == null) return false;
+        for (String p : ANDROID_FRAMEWORK_PREFIXES) {
+            if (module.startsWith(p)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isSyntheticFrame(String functionOrModule) {
+        if (functionOrModule == null) return false;
+        return functionOrModule.contains("$$ExternalSyntheticLambda")
+                || functionOrModule.contains("$r8$lambda$")
+                || functionOrModule.contains("$$Lambda$")
+                || functionOrModule.contains("$$SyntheticClass")
+                || functionOrModule.contains("D8$$SyntheticClass")
+                || functionOrModule.contains("$$ExternalSynthetic");
+    }
+
+    private static boolean isObfuscatedFrame(JsonNode frame) {
+        String function = frame.has("function") ? frame.path("function").asText("") : "";
+        int lineno = frame.has("lineno") ? frame.path("lineno").asInt(-1) : (frame.has("lineNo") ? frame.path("lineNo").asInt(-1) : -1);
+        if (lineno == 0) return true;
+        return function.matches(".*\\$[a-zA-Z0-9_]{10,}.*") || function.matches("^[a-zA-Z]$");
+    }
+
+    private static boolean looksAndroid(JsonNode exception, String projectRoot) {
+        JsonNode frames = exception.path("stacktrace").path("frames");
+        if (frames.isArray()) {
+            for (int i = frames.size() - 1; i >= 0; i--) {
+                JsonNode frame = frames.get(i);
+                String module = frame.path("module").asText("");
+                String filename = frame.path("filename").asText("");
+                if (module.contains("androidx.") || module.startsWith("android.") || filename.endsWith(".kt")) return true;
+            }
+        }
+        return projectRoot != null && projectRoot.startsWith("com.example.demologinapp");
+    }
+
+    /**
+     * Auto-detects app type (Android vs Java backend) and builds a filtered stack trace string
+     * with Bitbucket links using per-project repository mapping.
+     */
+    public String buildStackTraceStringAuto(JsonNode exception, BitbucketCodeFetcher bitbucketCodeFetcher, JsonNode eventData, String project) {
+        RepoConfig repo = repoResolver.resolve(project);
+        String commitHash = extractCommitHashFromEvent(eventData);
+        if (commitHash == null || commitHash.isEmpty()) {
+            try {
+                String newCommitHash = sentryReleaseService.createOrEnsureSentryRelease();
+                if (newCommitHash != null && !newCommitHash.isEmpty()) {
+                    commitHash = newCommitHash;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        boolean android = looksAndroid(exception, repo.getProjectRoot());
+        return android
+                ? buildAndroidStyleTrace(exception, bitbucketCodeFetcher, repo, commitHash)
+                : buildBackendStyleTrace(exception, bitbucketCodeFetcher, repo, commitHash);
+    }
+
+    private String buildBackendStyleTrace(JsonNode exception, BitbucketCodeFetcher bitbucketCodeFetcher, RepoConfig repo, String commitHash) {
+        String exceptionType = exception.has("type") ? exception.path("type").asText() : exception.path("name").asText("UnknownException");
+        String exceptionValue = exception.has("value") ? exception.path("value").asText() : "";
+        StringBuilder stackTrace = new StringBuilder();
+        stackTrace.append(exceptionType);
+        if (!exceptionValue.isEmpty()) stackTrace.append(": ").append(exceptionValue);
+        stackTrace.append("\n");
+
+        JsonNode frames = exception.path("stacktrace").path("frames");
+        if (frames.isArray()) {
+            for (int i = frames.size() - 1; i >= 0; i--) {
+                JsonNode frame = frames.get(i);
+                String module = frame.path("module").asText("");
+                String function = frame.path("function").asText("");
+                String filename = frame.path("filename").asText("UnknownFile.java");
+                int lineno = frame.has("lineno") ? frame.path("lineno").asInt(-1) : (frame.has("lineNo") ? frame.path("lineNo").asInt(-1) : -1);
+                // Filter: include frames whose module contains project root (backend)
+                if (repo.getProjectRoot() == null || repo.getProjectRoot().isEmpty() || module.startsWith(repo.getProjectRoot())) {
+                    stackTrace.append("    at ");
+                    if (!module.isEmpty()) stackTrace.append(module).append(".");
+                    stackTrace.append(function).append("(").append(filename);
+                    if (lineno != -1) stackTrace.append(":").append(lineno);
+                    stackTrace.append(")");
+                    String link = bitbucketCodeFetcher.buildBitbucketLinkWithCommitForRepo(module, filename, lineno, repo, commitHash);
+                    stackTrace.append(" [").append(link).append("]\n");
+                }
+            }
+        }
+        return stackTrace.toString();
+    }
+
+    private String buildAndroidStyleTrace(JsonNode exception, BitbucketCodeFetcher bitbucketCodeFetcher, RepoConfig repo, String commitHash) {
+        String exceptionType = exception.has("type") ? exception.path("type").asText() : exception.path("name").asText("UnknownException");
+        String exceptionValue = exception.has("value") ? exception.path("value").asText() : "";
+        StringBuilder cleanedTrace = new StringBuilder();
+        cleanedTrace.append(exceptionType);
+        if (!exceptionValue.isEmpty()) cleanedTrace.append(": ").append(exceptionValue);
+        cleanedTrace.append("\n");
+
+        JsonNode frames = exception.path("stacktrace").path("frames");
+        boolean foundApp = false;
+        boolean skippingFramework = false;
+        int skippedFramework = 0;
+        if (frames.isArray()) {
+            for (int i = frames.size() - 1; i >= 0; i--) {
+                JsonNode frame = frames.get(i);
+                String module = frame.path("module").asText("");
+                String function = frame.path("function").asText("");
+                String filename = frame.path("filename").asText("UnknownFile.kt");
+                int lineno = frame.has("lineno") ? frame.path("lineno").asInt(-1) : (frame.has("lineNo") ? frame.path("lineNo").asInt(-1) : -1);
+
+                boolean isFramework = isAndroidFrameworkModule(module);
+                boolean isSynthetic = isSyntheticFrame(module) || isSyntheticFrame(function);
+                boolean isObfuscated = isObfuscatedFrame(frame);
+                boolean isApp = module != null && repo.getProjectRoot() != null && module.startsWith(repo.getProjectRoot());
+
+                if (isApp && !isSynthetic && !isObfuscated) {
+                    if (skippingFramework && skippedFramework > 0) {
+                        cleanedTrace.append("    ... ").append(skippedFramework).append(" framework calls omitted ...\n");
+                        skippedFramework = 0;
+                    }
+                    skippingFramework = false;
+                    cleanedTrace.append("    at ");
+                    if (!module.isEmpty()) cleanedTrace.append(module).append(".");
+                    cleanedTrace.append(function).append("(").append(filename);
+                    if (lineno != -1) cleanedTrace.append(":").append(lineno);
+                    cleanedTrace.append(")");
+                    String link = bitbucketCodeFetcher.buildBitbucketLinkWithCommitForRepo(module, filename, lineno, repo, commitHash);
+                    cleanedTrace.append(" [").append(link).append("]\n");
+                    foundApp = true;
+                } else if (isSynthetic || isObfuscated) {
+                    // drop
+                } else if (!skippingFramework && foundApp && isFramework) {
+                    cleanedTrace.append("    at ");
+                    if (!module.isEmpty()) cleanedTrace.append(module).append(".");
+                    cleanedTrace.append(function).append("(").append(filename);
+                    if (lineno != -1) cleanedTrace.append(":").append(lineno);
+                    cleanedTrace.append(")\n");
+                    skippingFramework = true;
+                } else if (skippingFramework && isFramework) {
+                    skippedFramework++;
+                }
+            }
+        }
+        if (skippingFramework && skippedFramework > 0) {
+            cleanedTrace.append("    ... ").append(skippedFramework).append(" framework calls omitted ...\n");
+        }
+        if (!foundApp) {
+            cleanedTrace.append("    [Note: No application-specific code found in stack trace]\n");
+        }
+        return cleanedTrace.toString();
     }
 
     /**
