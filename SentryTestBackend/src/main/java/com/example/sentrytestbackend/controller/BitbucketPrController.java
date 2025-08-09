@@ -40,13 +40,11 @@ public class BitbucketPrController {
      * @return The result or link to the created PR, or error message.
      */
     @PostMapping("/create")
-    public ResponseEntity<?> createPrFromGemini(@RequestBody Map<String, Object> geminiJson) {
+    public ResponseEntity<?> createPrFromGemini(
+            @RequestParam(value = "project", required = false) String project,
+            @RequestBody Map<String, Object> geminiJson) {
         try {
-            // 1. Create branch
-            // 2. Commit code changes
-            // 3. Create pull request
-            // (All handled in BitbucketPrService.createPullRequestFromGeminiJson)
-            String prResult = bitbucketPrService.createPullRequestFromGeminiJson(geminiJson);
+            String prResult = bitbucketPrService.createPullRequestFromGeminiJson(geminiJson, project);
             return ResponseEntity.ok(Map.of("result", prResult));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));

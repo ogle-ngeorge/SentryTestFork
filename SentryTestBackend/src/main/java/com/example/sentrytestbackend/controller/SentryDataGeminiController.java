@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.example.sentrytestbackend.service.BitbucketPrService;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
+import com.example.sentrytestbackend.service.RepoResolver;
 
 @RestController
 @RequestMapping("/api/gemini-suggest") // Base Annotation for base URL paths (EX ~ )
@@ -53,6 +54,9 @@ public class SentryDataGeminiController {
 
     @Value("${sentry.organization.id}")
     private String organizationId;
+
+    @Autowired
+    private RepoResolver repoResolver;
 
     // GET REQUEST TO GEMINI & SENTRY TO GET SUGGESTION FOR 1 ERROR BASED ON ID
     // Format: http://localhost:8081/api/gemini-suggest/project/{project}/errorId/{errorId}?useBitbucket={true FOR BITBUCKET false FOR GITHUB}
@@ -89,8 +93,11 @@ public class SentryDataGeminiController {
         String stackTrace;
         String code;
         if ("bitbucket".equalsIgnoreCase(codeHost)) {
-            stackTrace = stackTraceController.buildStackTraceStringWithBitbucketLinks(exceptionNode, bitbucketCodeFetcher, stackTraceJson);
-            code = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 10, errorData.path("lastSeen").asText());
+            // Use per-project repo mapping and Android/backend detection for correct links and filtering
+            stackTrace = stackTraceController.buildStackTraceStringAuto(exceptionNode, bitbucketCodeFetcher, stackTraceJson, project);
+            // Fetch code snippets only for the project's source root
+            String srcRootFilter = repoResolver.resolve(project).getSrcRoot();
+            code = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 10, errorData.path("lastSeen").asText(), srcRootFilter);
         } else {
             stackTrace = stackTraceController.buildStackTraceString(exceptionNode, true); // true = with GitHub links
             code = githubCodeFetcher.getGithubCode(stackTrace);
@@ -181,10 +188,12 @@ public class SentryDataGeminiController {
      * Body: Gemini JSON from reviewErrorById
      */
     @PostMapping("/bitbucket-pr")
-    public ResponseEntity<?> createBitbucketPrFromGemini(@RequestBody Map<String, Object> geminiJson) {
+    public ResponseEntity<?> createBitbucketPrFromGemini(
+            @RequestParam(value = "project", required = false) String project,
+            @RequestBody Map<String, Object> geminiJson) {
         String prResult;
         try {
-            prResult = bitbucketPrService.createPullRequestFromGeminiJson(geminiJson);
+            prResult = bitbucketPrService.createPullRequestFromGeminiJson(geminiJson, project);
             return ResponseEntity.ok(Map.of("bitbucket_pr_result", prResult));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));

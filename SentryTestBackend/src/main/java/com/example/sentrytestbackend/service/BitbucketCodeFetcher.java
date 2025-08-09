@@ -153,13 +153,19 @@ public class BitbucketCodeFetcher {
 
         String workspace = matcher.group(1);
         String repo = matcher.group(2);
-        String branch = matcher.group(3);
+        String refFromLink = matcher.group(3);
         String filePath = matcher.group(4);
         int lineNumber = Integer.parseInt(matcher.group(5));
 
-        // Get commit hash for file as of errorTimestamp
-        String commitHash = getCommitHashForDate(workspace, repo, filePath, errorTimestamp);
-        String ref = (commitHash != null && !commitHash.isEmpty()) ? commitHash : branch;
+        // Respect explicit commit hashes in the incoming link; only resolve when it's a branch name
+        String ref = refFromLink;
+        boolean looksLikeCommit = refFromLink.matches("^[a-fA-F0-9]{7,40}$");
+        if (!looksLikeCommit) {
+            String commitHash = getCommitHashForDate(workspace, repo, filePath, errorTimestamp);
+            if (commitHash != null && !commitHash.isEmpty()) {
+                ref = commitHash;
+            }
+        }
 
         String apiUrl = String.format(
             "https://api.bitbucket.org/2.0/repositories/%s/%s/src/%s/%s",
@@ -176,11 +182,13 @@ public class BitbucketCodeFetcher {
             String fileContent = response.getBody();
             String[] lines = fileContent.split("\n");
 
-            int start = Math.max(0, lineNumber - context);
-            int end = Math.min(lines.length, lineNumber + context);
+            // Convert target lineNumber (1-based) to 0-based index
+            int targetIdx = Math.max(0, lineNumber - 1);
+            int startIdx = Math.max(0, targetIdx - context);
+            int endExclusive = Math.min(lines.length, targetIdx + context + 1);
 
             StringBuilder snippet = new StringBuilder();
-            for (int i = start; i < end; i++) {
+            for (int i = startIdx; i < endExclusive; i++) {
                 snippet.append((i + 1)).append(": ").append(lines[i]).append("\n");
             }
             return snippet.toString();
@@ -586,6 +594,51 @@ public class BitbucketCodeFetcher {
             System.err.println("[BitbucketCodeFetcher] API error getting commit from detected branch: " + e.getMessage());
         }
         
+        return null;
+    }
+
+    /**
+     * Gets the current commit hash for a specific repository/branch provided via RepoConfig.
+     * This is used for per-project commit detection (e.g., Android demo app vs backend).
+     */
+    public String getCurrentCommitForRepo(RepoConfig repo) {
+        if (repo == null || repo.getRepoUrl() == null || repo.getRepoUrl().isEmpty()) {
+            return null;
+        }
+
+        // Parse https://bitbucket.org/{workspace}/{repo}
+        String url = repo.getRepoUrl().replace("https://", "").replace("http://", "");
+        String[] parts = url.split("/");
+        String workspace = parts.length > 1 ? parts[1] : bitbucketWorkspace;
+        String repoSlug = parts.length > 2 ? parts[2] : bitbucketRepoName;
+        String branch = (repo.getBranch() != null && !repo.getBranch().isEmpty()) ? repo.getBranch() : bitbucketRepoBranch;
+
+        try {
+            String apiUrl = String.format(
+                "https://api.bitbucket.org/2.0/repositories/%s/%s/commits/%s?pagelen=1",
+                workspace, repoSlug, branch
+            );
+
+            HttpHeaders headers = new HttpHeaders();
+            if (bitbucketApiToken != null && !bitbucketApiToken.isEmpty()) {
+                headers.set("Authorization", "Bearer " + bitbucketApiToken);
+            }
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.GET, entity, String.class);
+            if (response.getStatusCode().is2xxSuccessful()) {
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode rootNode = mapper.readTree(response.getBody());
+                JsonNode commits = rootNode.path("values");
+                if (commits.isArray() && commits.size() > 0) {
+                    String commitHash = commits.get(0).path("hash").asText();
+                    return commitHash.length() > 7 ? commitHash.substring(0, 7) : commitHash;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[BitbucketCodeFetcher] API error getting commit for repo: " + repo.getRepoUrl() + " - " + e.getMessage());
+        }
+
         return null;
     }
 }

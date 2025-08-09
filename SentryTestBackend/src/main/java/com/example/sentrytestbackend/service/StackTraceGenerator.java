@@ -93,7 +93,9 @@ public class StackTraceGenerator {
                 JsonNode frame = frames.get(i);
                 String module = frame.path("module").asText("");
                 String filename = frame.path("filename").asText("");
-                if (module.contains("androidx.") || module.startsWith("android.") || filename.endsWith(".kt")) return true;
+                // Heuristic: Kotlin .kt isn't enough for Android; require projectRoot hint if present
+                if (module.contains("androidx.") || module.startsWith("android.")) return true;
+                if (filename.endsWith(".kt") && projectRoot != null && projectRoot.startsWith("com.example.demologinapp")) return true;
             }
         }
         return projectRoot != null && projectRoot.startsWith("com.example.demologinapp");
@@ -107,12 +109,22 @@ public class StackTraceGenerator {
         RepoConfig repo = repoResolver.resolve(project);
         String commitHash = extractCommitHashFromEvent(eventData);
         if (commitHash == null || commitHash.isEmpty()) {
+            // Try per-project commit from Bitbucket for the resolved repo
             try {
-                String newCommitHash = sentryReleaseService.createOrEnsureSentryRelease();
-                if (newCommitHash != null && !newCommitHash.isEmpty()) {
-                    commitHash = newCommitHash;
+                String repoCommit = bitbucketCodeFetcher != null ? bitbucketCodeFetcher.getCurrentCommitForRepo(repo) : null;
+                if (repoCommit != null && !repoCommit.isEmpty()) {
+                    commitHash = repoCommit;
                 }
             } catch (Exception ignored) {}
+            // As a fallback, try creating/ensuring a Sentry release (may use default repo)
+            if (commitHash == null || commitHash.isEmpty()) {
+                try {
+                    String newCommitHash = sentryReleaseService.createOrEnsureSentryRelease();
+                    if (newCommitHash != null && !newCommitHash.isEmpty()) {
+                        commitHash = newCommitHash;
+                    }
+                } catch (Exception ignored) {}
+            }
         }
 
         boolean android = looksAndroid(exception, repo.getProjectRoot());
