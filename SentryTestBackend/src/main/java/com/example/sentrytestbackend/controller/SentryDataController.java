@@ -62,6 +62,23 @@ public class SentryDataController {
         return ResponseEntity.ok(projects);
     }
 
+    // GET REQUEST TO FETCH BITBUCKET CODE SNIPPET
+    // Format: http://localhost:8081/api/sentry-errors/bitbucket-code?url={bitbucketUrl}&context={context}&timestamp={errorTimestamp}
+    @GetMapping("/bitbucket-code")
+    public ResponseEntity<Map<String, Object>> fetchBitbucketCode(
+            @RequestParam("url") String bitbucketUrl,
+            @RequestParam(value = "context", defaultValue = "10") int context,
+            @RequestParam("timestamp") String errorTimestamp) {
+        try {
+            String codeSnippet = bitbucketCodeFetcher.mapToBitbucketCode(bitbucketUrl, context, errorTimestamp);
+            return ResponseEntity.ok(Map.of("code", codeSnippet));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to fetch Bitbucket code: " + e.getMessage()
+            ));
+        }
+    }
+
     // GET REQUEST TO GET ALL ERROR NAMES FROM PROJECT WITH OCCURRENCE COUNTS
     // Format: http://localhost:8081/api/sentry-errors?project={projectSlug}
     // http://localhost:8081/api/sentry-errors?project=codemap-testing
