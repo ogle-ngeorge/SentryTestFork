@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.sentrytestbackend.service.SentryReleaseService;
 import com.example.sentrytestbackend.service.RepoResolver;
+import com.example.sentrytestbackend.service.RepoConfig;
 
 
 @RestController
@@ -75,6 +76,72 @@ public class SentryDataController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
                 "error", "Failed to fetch Bitbucket code: " + e.getMessage()
+            ));
+        }
+    }
+
+    // GET REQUEST TO TEST PROJECT CONFIGURATIONS
+    // Format: http://localhost:8081/api/sentry-errors/config-test?project={projectName}
+    @GetMapping("/config-test")
+    public ResponseEntity<Map<String, Object>> testProjectConfiguration(
+            @RequestParam(value = "project", required = false) String project) {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            
+            if (project != null && !project.trim().isEmpty()) {
+                // Test specific project configuration
+                RepoConfig config = repoResolver.resolve(project);
+                response.put("project", project);
+                response.put("config", Map.of(
+                    "projectName", config.getProjectName(),
+                    "projectRoot", config.getProjectRoot(),
+                    "repoUrl", config.getRepoUrl(),
+                    "branch", config.getBranch(),
+                    "srcRoot", config.getSrcRoot(),
+                    "workspace", config.getWorkspace(),
+                    "repositoryName", config.getRepositoryName(),
+                    "hasParsedBitbucketUrl", config.hasParsedBitbucketUrl()
+                ));
+                
+                // Test URL building with project's actual package structure (dynamic)
+                String projectRoot = config.getProjectRoot();
+                String testModule = projectRoot + ".TestClass";  // Use project's actual root package
+                String testFilename = "TestClass.java";  // Generic test file
+                int testLineNumber = 1;  // Generic line number
+                String testUrl = config.buildFileUrl(testModule, testFilename, testLineNumber);
+                response.put("testFileUrl", testUrl);
+                
+                // Add URL validation test
+                response.put("urlValidation", Map.of(
+                    "staticBuildUrl", testUrl,
+                    "message", "This URL is built using configured source.path. If invalid, search API will be used as fallback."
+                ));
+                
+            } else {
+                // Show all cached configurations
+                Map<String, RepoConfig> allConfigs = repoResolver.getCachedConfigs();
+                Map<String, Object> configSummary = new HashMap<>();
+                
+                for (Map.Entry<String, RepoConfig> entry : allConfigs.entrySet()) {
+                    RepoConfig config = entry.getValue();
+                    configSummary.put(entry.getKey(), Map.of(
+                        "projectRoot", config.getProjectRoot(),
+                        "workspace", config.getWorkspace() != null ? config.getWorkspace() : "N/A",
+                        "repositoryName", config.getRepositoryName() != null ? config.getRepositoryName() : "N/A",
+                        "branch", config.getBranch(),
+                        "hasParsedUrl", config.hasParsedBitbucketUrl()
+                    ));
+                }
+                
+                response.put("allCachedConfigurations", configSummary);
+                response.put("totalConfigs", allConfigs.size());
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to test configuration: " + e.getMessage()
             ));
         }
     }
@@ -167,10 +234,20 @@ public class SentryDataController {
             String stackTrace;
             String codeSnippet = "";
             if ("bitbucket".equalsIgnoreCase(codeHost)) {
-                stackTrace = stackTraceGenerator.buildStackTraceStringAuto(exceptionNode, bitbucketCodeFetcher, eventJson, project);
-                System.out.println("[DEBUG] Stack trace with Bitbucket links:\n" + stackTrace);
                 try {
-                    String raw = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 3, errorData.path("lastSeen").asText(), repoResolver.resolve(project).getSrcRoot());
+                    stackTrace = stackTraceGenerator.buildStackTraceStringAuto(exceptionNode, bitbucketCodeFetcher, eventJson, project);
+                    System.out.println("[DEBUG] Stack trace with Bitbucket links:\n" + stackTrace);
+                } catch (Exception e) {
+                    System.err.println("[ERROR] Failed to build stack trace for project: " + project + " - " + e.getMessage());
+                    stackTrace = "Error building stack trace: " + e.getMessage();
+                }
+                
+                try {
+                    // Safely resolve repository configuration
+                    RepoConfig repoConfig = repoResolver.resolve(project);
+                    String srcRootFilter = repoConfig != null ? repoConfig.getSrcRoot() : "";
+                    
+                    String raw = bitbucketCodeFetcher.getBitbucketCodeFromStackTrace(stackTrace, 3, errorData.path("lastSeen").asText(), srcRootFilter);
                     StringBuilder filtered = new StringBuilder();
                     String[] snippets = raw.split("\\n\\nSnippet for:");
                     for (String snippet : snippets) {
@@ -178,7 +255,6 @@ public class SentryDataController {
                         if (!snippet.startsWith("Snippet for:")) {
                             fullSnippet = "Snippet for:" + snippet;
                         }
-                        String srcRootFilter = repoResolver.resolve(project).getSrcRoot();
                         if (srcRootFilter == null || srcRootFilter.isEmpty() || fullSnippet.contains(srcRootFilter.replace("/", "/"))) {
                             filtered.append(fullSnippet.trim()).append("\n\n");
                         }
@@ -187,6 +263,7 @@ public class SentryDataController {
                 } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
                     codeSnippet = "Bitbucket file not found for one or more frames.";
                 } catch (Exception e) {
+                    System.err.println("[ERROR] Error fetching Bitbucket code for project: " + project + " - " + e.getMessage());
                     codeSnippet = "Error fetching Bitbucket code: " + e.getMessage();
                 }
             } else {
@@ -429,6 +506,187 @@ public class SentryDataController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).build();
+        }
+    }
+    
+    // GET REQUEST TO TEST DYNAMIC URL BUILDING
+    // Format: http://localhost:8081/api/sentry-errors/test-dynamic-url?project={project}&module={module}&filename={filename}&line={line}
+    @GetMapping("/test-dynamic-url")
+    public ResponseEntity<Map<String, Object>> testDynamicUrlBuilding(
+            @RequestParam("project") String project,
+            @RequestParam("module") String module,
+            @RequestParam("filename") String filename,
+            @RequestParam(value = "line", defaultValue = "1") int lineNumber) {
+        try {
+            
+            System.out.println("[TestEndpoint] Testing dynamic URL building:");
+            System.out.println("[TestEndpoint]   Project: " + project);
+            System.out.println("[TestEndpoint]   Module: " + module);
+            System.out.println("[TestEndpoint]   Filename: " + filename);
+            System.out.println("[TestEndpoint]   Line: " + lineNumber);
+            
+            // Test both static and dynamic URL building
+            RepoConfig config = repoResolver.resolve(project);
+            if (config == null) {
+                return ResponseEntity.status(404).body(Map.of(
+                    "error", "No configuration found for project: " + project
+                ));
+            }
+            
+            // Static URL building
+            String staticUrl = config.buildFileUrl(module, filename, lineNumber);
+            
+            // Dynamic URL building with fallback
+            String dynamicUrl = repoResolver.buildFileUrlWithFallback(project, module, filename, lineNumber);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("project", project);
+            response.put("module", module);
+            response.put("filename", filename);
+            response.put("lineNumber", lineNumber);
+            response.put("staticUrl", staticUrl);
+            response.put("dynamicUrl", dynamicUrl);
+            response.put("urlsMatch", staticUrl != null && staticUrl.equals(dynamicUrl));
+            response.put("projectConfig", Map.of(
+                "projectRoot", config.getProjectRoot(),
+                "srcRoot", config.getSrcRoot(),
+                "workspace", config.getWorkspace() != null ? config.getWorkspace() : "N/A",
+                "repository", config.getRepositoryName() != null ? config.getRepositoryName() : "N/A",
+                "hasParsedUrl", config.hasParsedBitbucketUrl()
+            ));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Dynamic URL test failed: " + e.getMessage()
+            ));
+        }
+    }
+    
+    // GET REQUEST TO TEST DYNAMIC FILE DISCOVERY
+    // Format: http://localhost:8081/api/sentry-errors/discover-file?workspace={workspace}&repo={repo}&branch={branch}&filename={filename}&package={package}
+    @GetMapping("/discover-file")
+    public ResponseEntity<Map<String, Object>> discoverFileLocation(
+            @RequestParam("workspace") String workspace,
+            @RequestParam("repo") String repository,
+            @RequestParam("branch") String branch,
+            @RequestParam("filename") String filename,
+            @RequestParam(value = "package", required = false) String packageName) {
+        try {
+            
+            System.out.println("[DiscoverEndpoint] Testing dynamic file discovery:");
+            System.out.println("[DiscoverEndpoint]   Workspace: " + workspace);
+            System.out.println("[DiscoverEndpoint]   Repository: " + repository);
+            System.out.println("[DiscoverEndpoint]   Branch: " + branch);
+            System.out.println("[DiscoverEndpoint]   Filename: " + filename);
+            System.out.println("[DiscoverEndpoint]   Package: " + packageName);
+            
+            // Use enhanced file discovery
+            String discoveredPath = bitbucketCodeFetcher.discoverFileLocation(workspace, repository, branch, filename, packageName);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("workspace", workspace);
+            response.put("repository", repository);
+            response.put("branch", branch);
+            response.put("filename", filename);
+            response.put("packageName", packageName);
+            response.put("discoveredPath", discoveredPath);
+            response.put("success", discoveredPath != null);
+            
+            if (discoveredPath != null) {
+                // Build the complete Bitbucket URL
+                String completeUrl = String.format("https://bitbucket.org/%s/%s/src/%s/%s", 
+                    workspace, repository, branch, discoveredPath);
+                response.put("bitbucketUrl", completeUrl);
+                response.put("message", "File discovered successfully via dynamic search");
+            } else {
+                response.put("message", "File not found using any discovery strategy");
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "File discovery failed: " + e.getMessage()
+            ));
+        }
+    }
+    
+    // GET REQUEST TO TEST SIMPLIFIED DYNAMIC CONFIGURATION
+    // Format: http://localhost:8081/api/sentry-errors/test-simplified-config?project={project}&module={module}&filename={filename}&line={line}
+    @GetMapping("/test-simplified-config")
+    public ResponseEntity<Map<String, Object>> testSimplifiedConfiguration(
+            @RequestParam("project") String project,
+            @RequestParam("module") String module,
+            @RequestParam("filename") String filename,
+            @RequestParam(value = "line", defaultValue = "1") int lineNumber) {
+        try {
+            
+            System.out.println("[SimplifiedConfigTest] Testing simplified configuration approach:");
+            System.out.println("[SimplifiedConfigTest]   Project: " + project);
+            System.out.println("[SimplifiedConfigTest]   Module: " + module);
+            System.out.println("[SimplifiedConfigTest]   Filename: " + filename);
+            System.out.println("[SimplifiedConfigTest]   Line: " + lineNumber);
+            
+            RepoConfig config = repoResolver.resolve(project);
+            if (config == null) {
+                return ResponseEntity.status(404).body(Map.of(
+                    "error", "No configuration found for project: " + project
+                ));
+            }
+            
+            // Inject BitbucketCodeFetcher for dynamic discovery
+            config.setBitbucketCodeFetcher(bitbucketCodeFetcher);
+            
+            // Test both approaches
+            String currentApproach = config.buildFileUrl(module, filename, lineNumber);
+            String simplifiedApproach = config.buildFileUrlWithDynamicDiscovery(module, filename, lineNumber);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("project", project);
+            response.put("module", module);
+            response.put("filename", filename);
+            response.put("lineNumber", lineNumber);
+            
+            // Current approach results
+            response.put("currentApproach", Map.of(
+                "method", "Static configuration with source.path",
+                "url", currentApproach != null ? currentApproach : "FAILED",
+                "success", currentApproach != null
+            ));
+            
+            // Simplified approach results  
+            response.put("simplifiedApproach", Map.of(
+                "method", "Dynamic discovery ending at /src/",
+                "url", simplifiedApproach != null ? simplifiedApproach : "FAILED",
+                "success", simplifiedApproach != null
+            ));
+            
+            // Comparison
+            response.put("comparison", Map.of(
+                "urlsMatch", currentApproach != null && currentApproach.equals(simplifiedApproach),
+                "recommendation", simplifiedApproach != null ? 
+                    "Simplified approach works - you can remove source.path configuration" :
+                    "Simplified approach failed - keep current configuration for now"
+            ));
+            
+            // Show what simplified config would look like
+            if (config.hasParsedBitbucketUrl()) {
+                response.put("simplifiedConfigExample", Map.of(
+                    "current", String.format("project.%s.source.path=%s", project, config.getSrcRoot()),
+                    "simplified", "# No source.path needed - ends at /src/ and uses dynamic discovery",
+                    "bitbucketUrl", String.format("project.%s.bitbucket.url=https://bitbucket.org/%s/%s/src/%s/",
+                        project, config.getWorkspace(), config.getRepositoryName(), config.getBranch())
+                ));
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Simplified configuration test failed: " + e.getMessage()
+            ));
         }
     }
 

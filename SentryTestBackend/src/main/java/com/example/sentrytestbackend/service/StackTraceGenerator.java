@@ -156,7 +156,8 @@ public class StackTraceGenerator {
                     stackTrace.append(function).append("(").append(filename);
                     if (lineno != -1) stackTrace.append(":").append(lineno);
                     stackTrace.append(")");
-                    String link = bitbucketCodeFetcher.buildBitbucketLinkWithCommitForRepo(module, filename, lineno, repo, commitHash);
+                    // Use the enhanced RepoConfig.buildFileUrl method with intelligent fallback
+                    String link = repo.buildFileUrl(module, filename, lineno);
                     stackTrace.append(" [").append(link).append("]\n");
                 }
             }
@@ -200,7 +201,8 @@ public class StackTraceGenerator {
                     cleanedTrace.append(function).append("(").append(filename);
                     if (lineno != -1) cleanedTrace.append(":").append(lineno);
                     cleanedTrace.append(")");
-                    String link = bitbucketCodeFetcher.buildBitbucketLinkWithCommitForRepo(module, filename, lineno, repo, commitHash);
+                    // Use the enhanced RepoConfig.buildFileUrl method with intelligent fallback
+                    String link = repo.buildFileUrl(module, filename, lineno);
                     cleanedTrace.append(" [").append(link).append("]\n");
                     foundApp = true;
                 } else if (isSynthetic || isObfuscated) {

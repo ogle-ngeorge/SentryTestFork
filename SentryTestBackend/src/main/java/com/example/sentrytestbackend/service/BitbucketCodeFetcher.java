@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.List;
+import java.util.ArrayList;
 
 @Service
 public class BitbucketCodeFetcher {
@@ -34,6 +36,269 @@ public class BitbucketCodeFetcher {
     @Value("${bitbucket.repo.name}")
     private String bitbucketRepoName;
     private final RestTemplate restTemplate = new RestTemplate();
+    
+    /**
+     * Searches for a file in a Bitbucket workspace using the search API
+     * This is useful when static URL building fails due to complex project structures
+     * 
+     * @param workspace Bitbucket workspace name
+     * @param filename The filename to search for (e.g., MainActivity.kt)
+     * @param packageName Optional Java package name for more precise matching
+     * @return List of matching file paths, or empty list if none found
+     */
+    public List<String> searchFileInWorkspace(String workspace, String filename, String packageName) {
+        try {
+            // Build search query: filename + optional package constraint
+            String searchQuery = filename;
+            if (packageName != null && !packageName.isEmpty()) {
+                // Convert package to path for better matching
+                String packagePath = packageName.replace('.', '/');
+                searchQuery = filename + " path:" + packagePath;
+            }
+            
+            String searchUrl = String.format(
+                "https://api.bitbucket.org/2.0/workspaces/%s/search/code?search_query=%s",
+                workspace, 
+                java.net.URLEncoder.encode(searchQuery, "UTF-8")
+            );
+            
+            System.out.println("[BitbucketCodeFetcher] Searching for file: " + searchQuery + " in workspace: " + workspace);
+            System.out.println("[BitbucketCodeFetcher] Search URL: " + searchUrl);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + selectTokenForWorkspace(workspace));
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<String> response = restTemplate.exchange(searchUrl, HttpMethod.GET, entity, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return parseSearchResults(response.getBody(), filename);
+            } else {
+                System.err.println("[BitbucketCodeFetcher] Search failed with status: " + response.getStatusCode());
+                return List.of();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("[BitbucketCodeFetcher] Error searching for file: " + e.getMessage());
+            return List.of();
+        }
+    }
+    
+    /**
+     * Parses Bitbucket search API results to extract file paths
+     */
+    private List<String> parseSearchResults(String jsonResponse, String targetFilename) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(jsonResponse);
+            JsonNode values = root.path("values");
+            
+            List<String> filePaths = new ArrayList<>();
+            
+            if (values.isArray()) {
+                for (JsonNode result : values) {
+                    JsonNode file = result.path("file");
+                    String path = file.path("path").asText();
+                    String name = file.path("name").asText();
+                    
+                    // Only include exact filename matches
+                    if (targetFilename.equals(name)) {
+                        filePaths.add(path);
+                        System.out.println("[BitbucketCodeFetcher] Found matching file: " + path);
+                    }
+                }
+            }
+            
+            System.out.println("[BitbucketCodeFetcher] Search found " + filePaths.size() + " matching files");
+            return filePaths;
+            
+        } catch (Exception e) {
+            System.err.println("[BitbucketCodeFetcher] Error parsing search results: " + e.getMessage());
+            return List.of();
+        }
+    }
+    
+    /**
+     * Searches for a file in a specific repository (more precise than workspace search)
+     * This is the PREFERRED method for dynamic file discovery
+     * 
+     * @param workspace Bitbucket workspace name
+     * @param repository Repository name
+     * @param filename The filename to search for
+     * @param packageName Optional package name for filtering
+     * @return List of matching file paths with full repository paths
+     */
+    public List<String> searchFileInRepository(String workspace, String repository, String filename, String packageName) {
+        try {
+            // Build search query
+            String searchQuery = filename;
+            if (packageName != null && !packageName.isEmpty()) {
+                String packagePath = packageName.replace('.', '/');
+                searchQuery = filename + " path:" + packagePath;
+            }
+            
+            String searchUrl = String.format(
+                "https://api.bitbucket.org/2.0/repositories/%s/%s/search/code?search_query=%s",
+                workspace, repository,
+                java.net.URLEncoder.encode(searchQuery, "UTF-8")
+            );
+            
+            System.out.println("[BitbucketCodeFetcher] Repository search: " + searchQuery + " in " + workspace + "/" + repository);
+            System.out.println("[BitbucketCodeFetcher] Search URL: " + searchUrl);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + selectTokenForWorkspace(workspace));
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<String> response = restTemplate.exchange(searchUrl, HttpMethod.GET, entity, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return parseSearchResults(response.getBody(), filename);
+            } else {
+                System.err.println("[BitbucketCodeFetcher] Repository search failed with status: " + response.getStatusCode());
+                return List.of();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("[BitbucketCodeFetcher] Error searching repository: " + e.getMessage());
+            return List.of();
+        }
+    }
+    
+    /**
+     * Browses repository directory structure to find files dynamically
+     * Useful when search API fails or for discovering project structure
+     * 
+     * @param workspace Bitbucket workspace
+     * @param repository Repository name  
+     * @param branch Branch name
+     * @param startPath Starting path (e.g., "" for root, "app/" for subdirectory)
+     * @param targetFilename File to search for
+     * @return List of full paths to matching files
+     */
+    public List<String> browseRepositoryForFile(String workspace, String repository, String branch, String startPath, String targetFilename) {
+        try {
+            String browsePath = startPath != null ? startPath : "";
+            String browseUrl = String.format(
+                "https://api.bitbucket.org/2.0/repositories/%s/%s/src/%s/%s",
+                workspace, repository, branch, browsePath
+            );
+            
+            System.out.println("[BitbucketCodeFetcher] Browsing repository path: " + browseUrl);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + selectTokenForWorkspace(workspace));
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<String> response = restTemplate.exchange(browseUrl, HttpMethod.GET, entity, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return parseDirectoryContents(response.getBody(), workspace, repository, branch, browsePath, targetFilename);
+            } else {
+                System.err.println("[BitbucketCodeFetcher] Browse failed with status: " + response.getStatusCode());
+                return List.of();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("[BitbucketCodeFetcher] Error browsing repository: " + e.getMessage());
+            return List.of();
+        }
+    }
+    
+    /**
+     * Parses directory listing response and recursively searches for target file
+     */
+    private List<String> parseDirectoryContents(String jsonResponse, String workspace, String repository, String branch, String currentPath, String targetFilename) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(jsonResponse);
+            JsonNode values = root.path("values");
+            
+            List<String> foundPaths = new ArrayList<>();
+            
+            if (values.isArray()) {
+                for (JsonNode item : values) {
+                    String type = item.path("type").asText();
+                    String name = item.path("name").asText();
+                    String path = item.path("path").asText();
+                    
+                    if ("commit_file".equals(type) && targetFilename.equals(name)) {
+                        // Found the target file
+                        foundPaths.add(path);
+                        System.out.println("[BitbucketCodeFetcher] Found file via browsing: " + path);
+                    } else if ("commit_directory".equals(type)) {
+                        // Recursively search subdirectories (limited depth for performance)
+                        int currentDepth = currentPath.split("/").length;
+                        if (currentDepth < 10) { // Prevent infinite recursion
+                            List<String> subResults = browseRepositoryForFile(workspace, repository, branch, path + "/", targetFilename);
+                            foundPaths.addAll(subResults);
+                        }
+                    }
+                }
+            }
+            
+            return foundPaths;
+            
+        } catch (Exception e) {
+            System.err.println("[BitbucketCodeFetcher] Error parsing directory contents: " + e.getMessage());
+            return List.of();
+        }
+    }
+    
+    /**
+     * ENHANCED FILE DISCOVERY - Combines multiple strategies for maximum success
+     * 1. Try repository-specific search first (fastest, most accurate)
+     * 2. Fall back to workspace search if needed
+     * 3. Fall back to directory browsing if search fails
+     * 
+     * @param workspace Bitbucket workspace
+     * @param repository Repository name
+     * @param branch Branch name
+     * @param filename Target filename
+     * @param packageName Optional package for filtering
+     * @return Best matching file path or null if not found
+     */
+    public String discoverFileLocation(String workspace, String repository, String branch, String filename, String packageName) {
+        System.out.println("[BitbucketCodeFetcher] Starting enhanced file discovery for: " + filename);
+        
+        // Strategy 1: Repository-specific search (preferred)
+        List<String> repoResults = searchFileInRepository(workspace, repository, filename, packageName);
+        if (!repoResults.isEmpty()) {
+            String bestMatch = repoResults.get(0); // Use first result
+            System.out.println("[BitbucketCodeFetcher] Discovery successful via repository search: " + bestMatch);
+            return bestMatch;
+        }
+        
+        // Strategy 2: Workspace-wide search (fallback)
+        List<String> workspaceResults = searchFileInWorkspace(workspace, filename, packageName);
+        if (!workspaceResults.isEmpty()) {
+            String bestMatch = workspaceResults.get(0);
+            System.out.println("[BitbucketCodeFetcher] Discovery successful via workspace search: " + bestMatch);
+            return bestMatch;
+        }
+        
+        // Strategy 3: Directory browsing (last resort)
+        List<String> browseResults = browseRepositoryForFile(workspace, repository, branch, "", filename);
+        if (!browseResults.isEmpty()) {
+            String bestMatch = browseResults.get(0);
+            System.out.println("[BitbucketCodeFetcher] Discovery successful via browsing: " + bestMatch);
+            return bestMatch;
+        }
+        
+        System.err.println("[BitbucketCodeFetcher] Enhanced discovery failed for: " + filename);
+        return null;
+    }
+    
+    /**
+     * Selects appropriate API token for a workspace
+     */
+    private String selectTokenForWorkspace(String workspace) {
+        // Use workspace-specific token if available, otherwise use default
+        if ("sentry-codespace-api".equals(workspace) && sentryDemoAppApiToken != null && !sentryDemoAppApiToken.isEmpty()) {
+            return sentryDemoAppApiToken;
+        }
+        return bitbucketApiToken;
+    }
 
     /**
      * Builds a Bitbucket link for a given module, filename, and line number.
