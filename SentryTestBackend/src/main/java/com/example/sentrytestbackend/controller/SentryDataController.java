@@ -148,7 +148,7 @@ public class SentryDataController {
 
     // GET REQUEST TO GET ALL ERROR NAMES FROM PROJECT WITH OCCURRENCE COUNTS
     // Format: http://localhost:8081/api/sentry-errors?project={projectSlug}
-    // http://localhost:8081/api/sentry-errors?project=codemap-testing
+    // http://localhost:8081/api/sentry-errors?project=sentry-demo-app
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> fetchAllErrorTitlesByProject(@RequestParam("project") String projectName) {
         try {
@@ -174,7 +174,7 @@ public class SentryDataController {
 
     // GET REQUEST TO MAP GROUPED ERRROR ID TO ERROR NAME
     // Format: http://localhost:8081/api/sentry-errors/id-error-map/project/{project}
-    // http://localhost:8081/api/sentry-errors/id-error-map/project/codemap-testing
+    // http://localhost:8081/api/sentry-errors/id-error-map/project/sentry-demo-app
     @GetMapping("/id-error-map/project/{project}")
     public ResponseEntity<Map<String, String>> mapIdsWithErrorName(
         @PathVariable String project) {
@@ -212,7 +212,7 @@ public class SentryDataController {
 
     // GET REQUEST TO GET ERROR MESSAGE + STACK TRACE BY PROJECT NAME & EVENT ID WITH OCCURRENCE COUNT
     // Format: http://localhost:8081/api/sentry-errors/project/{projectSlug}/errorId/{errorId}
-    // http://localhost:8081/api/sentry-errors/project/codemap-testing/errorId/6779538018
+    // http://localhost:8081/api/sentry-errors/project/sentry-demo-app/errorId/6810289382
     @GetMapping("/project/{project}/errorId/{errorId}")
     public ResponseEntity<Map<String, Object>> fetchErrorByProjectAndId(
         @PathVariable String project,
@@ -440,7 +440,7 @@ public class SentryDataController {
     // Shows errors that either first occurred OR reoccurred within the time window
     // Format: http://localhost:8081/api/sentry-errors/recent?project={projectSlug}&hours={hours}
     // http://localhost:8081/api/sentry-errors/recent?project=codemap-testing (defaults to 24 hours)
-    // http://localhost:8081/api/sentry-errors/recent?project=codemap-testing&hours=168 (1 week)
+    // http://localhost:8081/api/sentry-errors/recent?project=sentry-demo-app&hours=168 (1 week)
     @GetMapping("/recent")
     public ResponseEntity<List<Map<String, Object>>> fetchRecentErrorsByProject(
             @RequestParam("project") String projectName,
