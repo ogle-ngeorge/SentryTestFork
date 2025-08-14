@@ -11,6 +11,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.util.LinkedMultiValueMap;
 
 import java.util.*;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Service for automating Bitbucket pull request creation using Gemini AI JSON output.
@@ -24,6 +26,8 @@ public class BitbucketPrService {
     private String defaultRepoSlug;
     @Value("${bitbucket.repo.branch}")
     private String defaultMainBranch;
+    @Value("${bitbucket.api.email}")
+    private String bitbucketApiEmail;
     @Value("${bitbucket.api.token}")
     private String apiToken;
     @Value("${bitbucket.sentry-demo-app.api.token:}")
@@ -289,19 +293,46 @@ public class BitbucketPrService {
     }
 
     /**
-     * Gets the HTTP headers for Bitbucket API authentication.
+     * Creates Basic Authentication header for default API token
+     * Format: Authorization: Basic base64(email:token)
+     */
+    private String createBasicAuthHeader() {
+        String credentials = bitbucketApiEmail + ":" + apiToken;
+        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encodedCredentials;
+    }
+    
+    /**
+     * Creates Basic Authentication header for project-specific token
+     */
+    private String createBasicAuthHeaderForProject(String project) {
+        String tokenToUse = selectTokenForProject(project);
+        String credentials = bitbucketApiEmail + ":" + tokenToUse;
+        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encodedCredentials;
+    }
+    
+    /**
+     * Selects appropriate API token for a project
+     */
+    private String selectTokenForProject(String project) {
+        if (project != null) {
+            String normalized = project.trim().toLowerCase();
+            if (("sentry-demo-app".equals(normalized) || "sentry-demo".equals(normalized)) && 
+                sentryDemoAppApiToken != null && !sentryDemoAppApiToken.isEmpty()) {
+                return sentryDemoAppApiToken;
+            }
+        }
+        return apiToken;
+    }
+
+    /**
+     * Gets the HTTP headers for Bitbucket API authentication using Basic Auth.
      * @return HttpHeaders with Authorization set.
      */
     private HttpHeaders buildAuthHeadersForProject(String project) {
-        String tokenToUse = apiToken;
-        if (project != null) {
-            String normalized = project.trim().toLowerCase();
-            if (("sentry-demo-app".equals(normalized) || "sentry-demo".equals(normalized)) && sentryDemoAppApiToken != null && !sentryDemoAppApiToken.isEmpty()) {
-                tokenToUse = sentryDemoAppApiToken;
-            }
-        }
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + tokenToUse);
+        headers.set("Authorization", createBasicAuthHeaderForProject(project));
         return headers;
     }
 
@@ -342,3 +373,4 @@ public class BitbucketPrService {
         return normalizedRoot + filePath;
     }
 }
+

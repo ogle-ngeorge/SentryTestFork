@@ -10,6 +10,8 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class BitbucketCodeFetcher {
@@ -27,6 +29,8 @@ public class BitbucketCodeFetcher {
     private String bitbucketRepoBranch;
     @Value("${bitbucket.repo.srcRoot}")
     private String bitbucketRepoSrcRoot;
+    @Value("${bitbucket.api.email}")
+    private String bitbucketApiEmail;
     @Value("${bitbucket.api.token}")
     private String bitbucketApiToken;
     @Value("${bitbucket.sentry-demo-app.api.token:}")
@@ -66,7 +70,7 @@ public class BitbucketCodeFetcher {
             System.out.println("[BitbucketCodeFetcher] Search URL: " + searchUrl);
             
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + selectTokenForWorkspace(workspace));
+            headers.set("Authorization", createBasicAuthHeaderForWorkspace(workspace));
             HttpEntity<String> entity = new HttpEntity<>(headers);
             
             ResponseEntity<String> response = restTemplate.exchange(searchUrl, HttpMethod.GET, entity, String.class);
@@ -147,7 +151,7 @@ public class BitbucketCodeFetcher {
             System.out.println("[BitbucketCodeFetcher] Search URL: " + searchUrl);
             
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + selectTokenForWorkspace(workspace));
+            headers.set("Authorization", createBasicAuthHeaderForWorkspace(workspace));
             HttpEntity<String> entity = new HttpEntity<>(headers);
             
             ResponseEntity<String> response = restTemplate.exchange(searchUrl, HttpMethod.GET, entity, String.class);
@@ -187,7 +191,7 @@ public class BitbucketCodeFetcher {
             System.out.println("[BitbucketCodeFetcher] Browsing repository path: " + browseUrl);
             
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + selectTokenForWorkspace(workspace));
+            headers.set("Authorization", createBasicAuthHeaderForWorkspace(workspace));
             HttpEntity<String> entity = new HttpEntity<>(headers);
             
             ResponseEntity<String> response = restTemplate.exchange(browseUrl, HttpMethod.GET, entity, String.class);
@@ -287,6 +291,38 @@ public class BitbucketCodeFetcher {
         
         System.err.println("[BitbucketCodeFetcher] Enhanced discovery failed for: " + filename);
         return null;
+    }
+    
+    /**
+     * Creates Basic Authentication header for Atlassian API
+     * Format: Authorization: Basic base64(email:token)
+     */
+    private String createBasicAuthHeader() {
+        String credentials = bitbucketApiEmail + ":" + bitbucketApiToken;
+        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encodedCredentials;
+    }
+    
+    /**
+     * Creates Basic Authentication header for specific workspace/repo
+     * Uses workspace-specific token if available, otherwise uses default
+     */
+    private String createBasicAuthHeaderForWorkspace(String workspace) {
+        String token = selectTokenForWorkspace(workspace);
+        String credentials = bitbucketApiEmail + ":" + token;
+        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encodedCredentials;
+    }
+    
+    /**
+     * Creates Basic Authentication header for specific workspace and repository
+     * Uses repository-specific token selection logic
+     */
+    private String createBasicAuthHeaderForWorkspaceRepo(String workspace, String repo) {
+        String token = selectTokenForWorkspaceRepo(workspace, repo);
+        String credentials = bitbucketApiEmail + ":" + token;
+        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encodedCredentials;
     }
     
     /**
@@ -439,7 +475,7 @@ public class BitbucketCodeFetcher {
             workspace, repo, ref, filePath
         );
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + selectTokenForWorkspaceRepo(workspace, repo));
+        headers.set("Authorization", createBasicAuthHeaderForWorkspaceRepo(workspace, repo));
         HttpEntity<String> entity = new HttpEntity<>(headers);
 
         try {
@@ -657,7 +693,7 @@ public class BitbucketCodeFetcher {
                 workspace, repo, filePath, untilIsoDate
             );
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + bitbucketApiToken);
+            headers.set("Authorization", createBasicAuthHeader());
             HttpEntity<String> entity = new HttpEntity<>(headers);
 
             ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.GET, entity, String.class);
@@ -691,7 +727,7 @@ public class BitbucketCodeFetcher {
             
             HttpHeaders headers = new HttpHeaders();
             if (bitbucketApiToken != null && !bitbucketApiToken.isEmpty()) {
-                headers.set("Authorization", "Bearer " + bitbucketApiToken);
+                headers.set("Authorization", createBasicAuthHeader());
             }
             HttpEntity<String> entity = new HttpEntity<>(headers);
             
@@ -801,7 +837,7 @@ public class BitbucketCodeFetcher {
             HttpHeaders headers = new HttpHeaders();
             String token = selectTokenForWorkspaceRepo(bitbucketWorkspace, bitbucketRepoName);
             if (token != null && !token.isEmpty()) {
-                headers.set("Authorization", "Bearer " + token);
+                headers.set("Authorization", createBasicAuthHeaderForWorkspaceRepo(bitbucketWorkspace, bitbucketRepoName));
             }
             HttpEntity<String> entity = new HttpEntity<>(headers);
             
@@ -840,7 +876,7 @@ public class BitbucketCodeFetcher {
             HttpHeaders headers = new HttpHeaders();
             String token = selectTokenForWorkspaceRepo(bitbucketWorkspace, bitbucketRepoName);
             if (token != null && !token.isEmpty()) {
-                headers.set("Authorization", "Bearer " + token);
+                headers.set("Authorization", createBasicAuthHeaderForWorkspaceRepo(bitbucketWorkspace, bitbucketRepoName));
             }
             HttpEntity<String> entity = new HttpEntity<>(headers);
             
@@ -891,7 +927,7 @@ public class BitbucketCodeFetcher {
             HttpHeaders headers = new HttpHeaders();
             String token = selectTokenForWorkspaceRepo(workspace, repoSlug);
             if (token != null && !token.isEmpty()) {
-                headers.set("Authorization", "Bearer " + token);
+                headers.set("Authorization", createBasicAuthHeaderForWorkspaceRepo(workspace, repoSlug));
             }
             HttpEntity<String> entity = new HttpEntity<>(headers);
 
