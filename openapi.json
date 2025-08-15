@@ -1,0 +1,1039 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Sentry Test Backend API",
+    "description": "A comprehensive API for managing Sentry error data, GitHub/Bitbucket code analysis, and AI-powered error suggestions using Gemini AI. This API provides endpoints for fetching Sentry error data, analyzing stack traces, and generating AI-powered suggestions for error resolution.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Sentry Test Backend",
+      "url": "http://localhost:8081"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8081",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health & Testing",
+      "description": "Health checks and testing endpoints"
+    },
+    {
+      "name": "GitHub Integration",
+      "description": "GitHub code fetching and analysis endpoints"
+    },
+    {
+      "name": "Sentry Data",
+      "description": "Sentry error data retrieval and management"
+    },
+    {
+      "name": "AI Analysis",
+      "description": "Gemini AI-powered error analysis and suggestions"
+    },
+    {
+      "name": "Stack Trace",
+      "description": "Stack trace generation and analysis"
+    },
+    {
+      "name": "Release Management",
+      "description": "Sentry release creation and management"
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["Health & Testing"],
+        "summary": "Health check endpoint",
+        "description": "Check if the backend service is running and returns current status with timestamp",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "UP"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Backend is running"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "example": "1640995200000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/test-success": {
+      "get": {
+        "tags": ["Health & Testing"],
+        "summary": "Test successful API call",
+        "description": "Test endpoint that returns a successful response with random data",
+        "operationId": "testSuccess",
+        "responses": {
+          "200": {
+            "description": "Successful test response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "This is a successful API call"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "example": 123
+                        },
+                        "value": {
+                          "type": "string",
+                          "example": "test-data-45"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/test-error": {
+      "get": {
+        "tags": ["Health & Testing"],
+        "summary": "Test error handling",
+        "description": "Test endpoint that intentionally throws an error to test Sentry error tracking",
+        "operationId": "testError",
+        "responses": {
+          "500": {
+            "description": "Intentional test error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Test error occurred!"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "This is a test error for Sentry!"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/divide-by-zero": {
+      "get": {
+        "tags": ["Health & Testing"],
+        "summary": "Test divide by zero error",
+        "description": "Test endpoint that causes a divide by zero error for testing Sentry error tracking",
+        "operationId": "testDivideByZero",
+        "responses": {
+          "500": {
+            "description": "Divide by zero error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Divide by zero error!"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "/ by zero"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gemini-data": {
+      "get": {
+        "tags": ["AI Analysis"],
+        "summary": "Get Gemini AI data",
+        "description": "Retrieve data for Gemini AI analysis",
+        "operationId": "getGeminiData",
+        "responses": {
+          "200": {
+            "description": "Gemini data retrieved successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gemini-analysis": {
+      "get": {
+        "tags": ["AI Analysis"],
+        "summary": "Get Gemini AI analysis",
+        "description": "Generate AI analysis using Gemini",
+        "operationId": "getGeminiAnalysis",
+        "responses": {
+          "200": {
+            "description": "AI analysis generated successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gemini-suggestions": {
+      "get": {
+        "tags": ["AI Analysis"],
+        "summary": "Get Gemini AI suggestions",
+        "description": "Generate AI-powered suggestions using Gemini",
+        "operationId": "getGeminiSuggestions",
+        "responses": {
+          "200": {
+            "description": "AI suggestions generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/create-release": {
+      "get": {
+        "tags": ["Release Management"],
+        "summary": "Create Sentry release",
+        "description": "Create or verify a Sentry release with Bitbucket commit",
+        "operationId": "createSentryRelease",
+        "responses": {
+          "200": {
+            "description": "Release creation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["SUCCESS", "ERROR"],
+                      "example": "SUCCESS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Sentry release created/verified"
+                    },
+                    "commitHash": {
+                      "type": "string",
+                      "example": "abc1234"
+                    },
+                    "releaseVersion": {
+                      "type": "string",
+                      "example": "abc1234"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/current-release": {
+      "get": {
+        "tags": ["Release Management"],
+        "summary": "Get current release info",
+        "description": "Retrieve current release information from Bitbucket",
+        "operationId": "getCurrentRelease",
+        "responses": {
+          "200": {
+            "description": "Current release information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["SUCCESS", "ERROR"],
+                      "example": "SUCCESS"
+                    },
+                    "commitHash": {
+                      "type": "string",
+                      "example": "abc1234"
+                    },
+                    "source": {
+                      "type": "string",
+                      "example": "bitbucket-api"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Current commit retrieved from Bitbucket"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/github/test": {
+      "get": {
+        "tags": ["GitHub Integration"],
+        "summary": "Test GitHub code fetcher",
+        "description": "Test the GitHub API connection and code fetching functionality",
+        "operationId": "testGitHubFetcher",
+        "responses": {
+          "200": {
+            "description": "GitHub test result",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/github/gemini-review": {
+      "get": {
+        "tags": ["GitHub Integration", "AI Analysis"],
+        "summary": "Get Gemini code review",
+        "description": "Get AI-powered code review using Gemini for GitHub code snippets",
+        "operationId": "geminiCodeReview",
+        "responses": {
+          "200": {
+            "description": "Gemini code review result",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/github/gemini-review-multiple": {
+      "get": {
+        "tags": ["GitHub Integration", "AI Analysis"],
+        "summary": "Get multiple Gemini code reviews",
+        "description": "Get AI-powered code reviews for multiple GitHub code snippets",
+        "operationId": "geminiCodeReviewMultiple",
+        "parameters": [
+          {
+            "name": "maxErrors",
+            "in": "query",
+            "description": "Maximum number of errors to analyze",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 4
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Multiple Gemini code review results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/github/fetch-code": {
+      "post": {
+        "tags": ["GitHub Integration"],
+        "summary": "Fetch code from stack trace",
+        "description": "Fetch GitHub code snippets from a provided stack trace",
+        "operationId": "fetchCode",
+        "requestBody": {
+          "description": "Stack trace containing GitHub links",
+          "required": true,
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Code fetched successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sentry-errors/projects": {
+      "get": {
+        "tags": ["Sentry Data"],
+        "summary": "Get all Sentry projects",
+        "description": "Retrieve all project names from Sentry",
+        "operationId": "fetchAllProjects",
+        "responses": {
+          "200": {
+            "description": "List of all projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sentry-errors": {
+      "get": {
+        "tags": ["Sentry Data"],
+        "summary": "Get errors by project",
+        "description": "Retrieve all error titles and occurrence counts for a specific project",
+        "operationId": "fetchErrorsByProject",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project slug to fetch errors from",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "codemap-testing"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of errors for the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "count": {
+                        "type": "integer"
+                      },
+                      "lastSeen": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/sentry-errors/id-error-map/project/{project}": {
+      "get": {
+        "tags": ["Sentry Data"],
+        "summary": "Map error IDs to names",
+        "description": "Get a mapping of grouped error IDs to error names for a project",
+        "operationId": "mapIdsWithErrorName",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "codemap-testing"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mapping of error IDs to names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/sentry-errors/project/{project}/errorId/{errorId}": {
+      "get": {
+        "tags": ["Sentry Data"],
+        "summary": "Get error details by project and ID",
+        "description": "Fetch detailed error information including stack trace and code snippets",
+        "operationId": "fetchErrorByProjectAndId",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "codemap-testing"
+            }
+          },
+          {
+            "name": "errorId",
+            "in": "path",
+            "description": "Error ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "6779538018"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detailed error information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "commitHash": {
+                      "type": "string"
+                    },
+                    "stackTrace": {
+                      "type": "string"
+                    },
+                    "codeSnippet": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error fetching details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sentry-errors/project/{project}/errors": {
+      "get": {
+        "tags": ["Sentry Data"],
+        "summary": "Get multiple errors by IDs",
+        "description": "Fetch multiple error details including stack traces and Bitbucket code",
+        "operationId": "fetchErrorsByIds",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "android"
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "description": "Comma-separated list of error IDs",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "6748881802,6744676878"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of error details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "timestamp": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "count": {
+                        "type": "integer"
+                      },
+                      "commitHash": {
+                        "type": "string"
+                      },
+                      "stackTrace": {
+                        "type": "string"
+                      },
+                      "bitbucketCode": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/gemini-suggest/project/{project}/errorId/{errorId}": {
+      "get": {
+        "tags": ["AI Analysis"],
+        "summary": "Get AI suggestions for error",
+        "description": "Get Gemini AI-powered suggestions for fixing a specific error",
+        "operationId": "reviewErrorById",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "android"
+            }
+          },
+          {
+            "name": "errorId",
+            "in": "path",
+            "description": "Error ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "6744676878"
+            }
+          },
+          {
+            "name": "useBitbucket",
+            "in": "query",
+            "description": "Whether to use Bitbucket for code fetching",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AI suggestions for the error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errorId": {
+                      "type": "string"
+                    },
+                    "suggestion": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gemini-suggest/batch/project/{project}/errors": {
+      "get": {
+        "tags": ["AI Analysis"],
+        "summary": "Get AI suggestions for multiple errors",
+        "description": "Get Gemini AI-powered suggestions for fixing multiple errors",
+        "operationId": "reviewMultipleErrorsByID",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "android"
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "description": "Comma-separated list of error IDs",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "6744676878,6745069181"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AI suggestions for multiple errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "errorId": {
+                        "type": "string"
+                      },
+                      "suggestions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stacktrace/see-stack-trace": {
+      "get": {
+        "tags": ["Stack Trace"],
+        "summary": "Get most recent stack trace",
+        "description": "Retrieve the most recent stack trace in classic Java format",
+        "operationId": "seeStackTrace",
+        "responses": {
+          "200": {
+            "description": "Stack trace in Java format",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stacktrace/see-stack-trace-github": {
+      "get": {
+        "tags": ["Stack Trace"],
+        "summary": "Get stack trace with GitHub links",
+        "description": "Retrieve the most recent stack trace with GitHub code connections",
+        "operationId": "seeStackTraceGithub",
+        "responses": {
+          "200": {
+            "description": "Stack trace with GitHub links",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stacktrace/gemini-stacktrace": {
+      "get": {
+        "tags": ["Stack Trace", "AI Analysis"],
+        "summary": "Get Gemini stack trace analysis",
+        "description": "Get AI-powered interpretation and analysis of stack trace errors",
+        "operationId": "getGeminiStackTrace",
+        "responses": {
+          "200": {
+            "description": "AI interpretation of stack trace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "UP"
+          },
+          "message": {
+            "type": "string",
+            "example": "Backend is running"
+          },
+          "timestamp": {
+            "type": "string",
+            "example": "1640995200000"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "SentryProject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "SentryError": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "lastSeen": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ErrorDetails": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "commitHash": {
+            "type": "string"
+          },
+          "stackTrace": {
+            "type": "string"
+          },
+          "codeSnippet": {
+            "type": "string"
+          },
+          "bitbucketCode": {
+            "type": "string"
+          }
+        }
+      },
+      "AISuggestion": {
+        "type": "object",
+        "properties": {
+          "errorId": {
+            "type": "string"
+          },
+          "suggestion": {
+            "type": "string"
+          }
+        }
+      },
+      "BatchAISuggestion": {
+        "type": "object",
+        "properties": {
+          "errorId": {
+            "type": "string"
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ReleaseInfo": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["SUCCESS", "ERROR"]
+          },
+          "message": {
+            "type": "string"
+          },
+          "commitHash": {
+            "type": "string"
+          },
+          "releaseVersion": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
